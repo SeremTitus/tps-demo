@@ -18,7 +18,7 @@ jobs:
       has_ios: ${{ steps.check.outputs.has_ios }}
       has_visionos: ${{ steps.check.outputs.has_visionos }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Detect platforms from export presets
         id: check
         shell: bash
@@ -56,7 +56,7 @@ jobs:
     if: needs.detect.outputs.has_windows == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install gdio
         shell: pwsh
         run: curl.exe -fsSL https://gdio.seremtitus.co.ke/install.ps1 | powershell -Command -
@@ -124,7 +124,7 @@ jobs:
             }
           }
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: exports-windows
           path: artifacts/*.zip
@@ -135,7 +135,7 @@ jobs:
     if: needs.detect.outputs.has_linux == 'true' || needs.detect.outputs.has_web == 'true' || needs.detect.outputs.has_android == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
@@ -214,7 +214,7 @@ jobs:
             _flush
           fi
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: exports-linux
           path: artifacts/*.zip
@@ -225,7 +225,7 @@ jobs:
     if: needs.detect.outputs.has_macos == 'true' || needs.detect.outputs.has_ios == 'true' || needs.detect.outputs.has_visionos == 'true'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
@@ -304,7 +304,7 @@ jobs:
             _flush
           fi
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: exports-macos
           path: artifacts/*.zip
@@ -316,7 +316,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all exports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: exports-*
           path: downloads/
@@ -330,7 +330,7 @@ jobs:
           zip -qr ../../all_exports.zip .
 
       - name: Upload aggregated artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: all-exports
           path: all_exports.zip
