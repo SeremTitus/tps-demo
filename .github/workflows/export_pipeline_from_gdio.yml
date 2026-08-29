@@ -77,20 +77,49 @@ jobs:
         run: |
           if (Test-Path export_presets.cfg) {
             New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-            $content = Get-Content export_presets.cfg -Raw
-            $sections = $content -split '(?=\[preset\.)'
-            foreach ($section in $sections) {
-              if ($section -notmatch '^\[preset\.') { continue }
-              $name = if ($section -match '(?m)^name="([^"]*)"') { $Matches[1] } else { '' }
-              $platform = if ($section -match '(?m)^platform="([^"]*)"') { $Matches[1] } else { '' }
-              $exportPath = if ($section -match '(?m)^export_path="([^"]*)"') { $Matches[1] } else { '' }
-              if ($platform -ne "Windows" -or [string]::IsNullOrEmpty($name)) { continue }
+            $lines = @(Get-Content export_presets.cfg)
+            Write-Host "Read $($lines.Count) lines from export_presets.cfg"
+            $name = ''; $platform = ''; $exportPath = ''
+            foreach ($raw in $lines) {
+              $line = $raw.Trim()
+              if ($line -match '^\[preset\.') {
+                if ($name -ne '') {
+                  $ps = ($name.ToLower() -replace '[^a-z0-9]','_')
+                  Write-Host "Preset: $name | Platform: $platform | ExportPath: '$exportPath' | Snake: $ps"
+                  $zipped = $false
+                  if ($exportPath -ne '' -and (Test-Path $exportPath)) {
+                    $dir = Split-Path $exportPath -Parent
+                    if ($dir -ne '' -and (Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+                      Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/windows_${ps}.zip" -Force
+                      $zipped = $true
+                      Write-Host "  -> Zipped from export_path dir: $dir"
+                    }
+                  }
+                  if (-not $zipped) {
+                    $presetDir = "export/$ps"
+                    if (Test-Path $presetDir) {
+                      if (Get-ChildItem -Path $presetDir -File -ErrorAction SilentlyContinue | Select-Object -First 1) {
+                        Compress-Archive -Path "$presetDir/*" -DestinationPath "artifacts/windows_${ps}.zip" -Force
+                        $zipped = $true
+                        Write-Host "  -> Zipped from $presetDir"
+                      }
+                    }
+                  }
+                  if (-not $zipped) { Write-Host "  -> No files found to zip" }
+                }
+                $name = ''; $platform = ''; $exportPath = ''
+              }
+              if ($line -match '^name="([^"]*)"') { $name = $Matches[1] }
+              if ($line -match '^platform="([^"]*)"') { $platform = $Matches[1] }
+              if ($line -match '^export_path="([^"]*)"') { $exportPath = $Matches[1] }
+            }
+            if ($name -ne '') {
               $ps = ($name.ToLower() -replace '[^a-z0-9]','_')
               Write-Host "Preset: $name | Platform: $platform | ExportPath: '$exportPath' | Snake: $ps"
               $zipped = $false
-              if (-not [string]::IsNullOrEmpty($exportPath) -and (Test-Path $exportPath)) {
+              if ($exportPath -ne '' -and (Test-Path $exportPath)) {
                 $dir = Split-Path $exportPath -Parent
-                if (-not [string]::IsNullOrEmpty($dir) -and (Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+                if ($dir -ne '' -and (Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
                   Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/windows_${ps}.zip" -Force
                   $zipped = $true
                   Write-Host "  -> Zipped from export_path dir: $dir"
@@ -99,17 +128,14 @@ jobs:
               if (-not $zipped) {
                 $presetDir = "export/$ps"
                 if (Test-Path $presetDir) {
-                  $files = Get-ChildItem -Path $presetDir -File -ErrorAction SilentlyContinue
-                  if ($files) {
+                  if (Get-ChildItem -Path $presetDir -File -ErrorAction SilentlyContinue | Select-Object -First 1) {
                     Compress-Archive -Path "$presetDir/*" -DestinationPath "artifacts/windows_${ps}.zip" -Force
                     $zipped = $true
                     Write-Host "  -> Zipped from $presetDir"
                   }
                 }
               }
-              if (-not $zipped) {
-                Write-Host "  -> No files found to zip"
-              }
+              if (-not $zipped) { Write-Host "  -> No files found to zip" }
             }
             Write-Host "Artifacts directory contents:"
             Get-ChildItem -Path artifacts -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
