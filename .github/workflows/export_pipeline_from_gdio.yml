@@ -97,6 +97,9 @@ jobs:
           echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
           echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
           echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+      - name: Download Windows export templates
+        if: steps.presets.outputs.has_windows == 'true'
+        run: gdio templates add 4.7.2-stable --windows
       - name: Export Windows presets
         if: steps.presets.outputs.has_windows == 'true'
         run: gdio build --windows
@@ -167,12 +170,21 @@ jobs:
           echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
           echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
           echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+      - name: Download Linux export templates
+        if: steps.presets.outputs.has_linux == 'true'
+        run: gdio templates add 4.7.2-stable --linux
       - name: Export Linux presets
         if: steps.presets.outputs.has_linux == 'true'
         run: gdio build --linux
+      - name: Download Web export templates
+        if: steps.presets.outputs.has_web == 'true'
+        run: gdio templates add 4.7.2-stable --web
       - name: Export Web presets
         if: steps.presets.outputs.has_web == 'true'
         run: gdio build --web
+      - name: Download Android export templates
+        if: steps.presets.outputs.has_android == 'true'
+        run: gdio templates add 4.7.2-stable --android
       - name: Export Android presets
         if: steps.presets.outputs.has_android == 'true'
         run: gdio build --android
@@ -250,12 +262,21 @@ jobs:
           echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
           echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
           echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+      - name: Download macOS export templates
+        if: steps.presets.outputs.has_macos == 'true'
+        run: gdio templates add 4.7.2-stable --macos
       - name: Export macOS presets
         if: steps.presets.outputs.has_macos == 'true'
         run: gdio build --macos
+      - name: Download iOS export templates
+        if: steps.presets.outputs.has_ios == 'true'
+        run: gdio templates add 4.7.2-stable --ios
       - name: Export iOS presets
         if: steps.presets.outputs.has_ios == 'true'
         run: gdio build --ios
+      - name: Download visionOS export templates
+        if: steps.presets.outputs.has_visionos == 'true'
+        run: gdio templates add 4.7.2-stable --visionos
       - name: Export visionOS presets
         if: steps.presets.outputs.has_visionos == 'true'
         run: gdio build --visionos
