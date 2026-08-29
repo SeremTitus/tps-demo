@@ -311,7 +311,6 @@ jobs:
           path: artifacts/ios_ios_2.zip
           if-no-files-found: ignore
 
-    parts.push(s(r#"
   package:
     needs: [export-windows, export-linux, export-macos]
     if: always() && (needs.export-windows.result == 'success' || needs.export-linux.result == 'success' || needs.export-macos.result == 'success')
