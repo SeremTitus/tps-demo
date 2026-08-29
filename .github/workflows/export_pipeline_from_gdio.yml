@@ -80,37 +80,31 @@ jobs:
         run: |
           if (Test-Path export_presets.cfg) {
             New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-            $game = $env:GITHUB_REPO_NAME
             $presets = @()
             $cur = @{}
             switch -Regex -File export_presets.cfg {
               '^\[preset' { if ($cur.name) { $presets += [pscustomobject]$cur }; $cur = @{} }
               '^name="([^"]*)"'              { $cur.name = $Matches[1] }
+              '^platform="([^"]*)"'          { $cur.platform = $Matches[1] }
               '^export_path="([^"]*)"'       { $cur.export_path = $Matches[1] }
             }
             if ($cur.name) { $presets += [pscustomobject]$cur }
             foreach ($p in $presets) {
+              if ($p.platform -ne "Windows") { continue }
               $ps = ($p.name.ToLower() -replace '[^a-z0-9]','_')
               if ($p.export_path -and (Test-Path $p.export_path)) {
                 $dir = Split-Path $p.export_path -Parent
                 if (Get-ChildItem -Path $dir -File | Select-Object -First 1) {
-                  Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/${game}_${ps}.zip"
+                  Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/windows_${ps}.zip"
                 }
               }
               elseif (Test-Path "export/$ps") {
                 if (Get-ChildItem -Path "export/$ps" -File | Select-Object -First 1) {
-                  Compress-Archive -Path "export/$ps/*" -DestinationPath "artifacts/${game}_${ps}.zip"
+                  Compress-Archive -Path "export/$ps/*" -DestinationPath "artifacts/windows_${ps}.zip"
                 }
               }
             }
           }
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: exports-windows
-          path: artifacts/*.zip
-          if-no-files-found: ignore
-
   export-linux:
     needs: detect
     if: needs.detect.outputs.has_linux == 'true' || needs.detect.outputs.has_web == 'true' || needs.detect.outputs.has_android == 'true'
@@ -148,36 +142,94 @@ jobs:
         run: |
           if [ -f export_presets.cfg ]; then
             mkdir -p artifacts
-            game="${GITHUB_REPO_NAME}"
-            _name="" _export_path=""
+            _name="" _platform="" _export_path=""
             _flush() {
               [ -z "$_name" ] && return
+              case "$_platform" in
+                Linux|Web|Android) ;;
+                *) return ;;
+              esac
               _ps=$(echo "$_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
               if [ -n "$_export_path" ] && [ -f "$_export_path" ]; then
                 _dir=$(dirname "$_export_path")
-                zip -qr "artifacts/${game}_${_ps}.zip" "$_dir"
+                zip -qr "artifacts/${_platform}_${_ps}.zip" "$_dir"
               elif [ -d "export/$_ps" ]; then
                 _count=$(find "export/$_ps" -maxdepth 1 -type f | wc -l)
                 if [ "$_count" -gt 0 ]; then
-                  zip -qr "artifacts/${game}_${_ps}.zip" "export/$_ps"
+                  zip -qr "artifacts/${_platform}_${_ps}.zip" "export/$_ps"
                 fi
               fi
             }
             while IFS= read -r line; do
               if [[ "$line" =~ ^\[preset\. ]]; then
                 _flush
-                _name="" _export_path=""
+                _name="" _platform="" _export_path=""
               fi
               [[ "$line" =~ ^name=\"([^\"]*)\" ]] && _name="${BASH_REMATCH[1]}"
+              [[ "$line" =~ ^platform=\"([^\"]*)\" ]] && _platform="${BASH_REMATCH[1]}"
               [[ "$line" =~ ^export_path=\"([^\"]*)\" ]] && _export_path="${BASH_REMATCH[1]}"
             done < export_presets.cfg
             _flush
           fi
-      - name: Upload artifacts
+      - name: Upload linux Linux preset
         uses: actions/upload-artifact@v7
         with:
-          name: exports-linux
-          path: artifacts/*.zip
+          name: linux_linux
+          path: artifacts/linux_linux.zip
+          if-no-files-found: ignore
+      - name: Upload linux Linux 2 preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux_linux_2
+          path: artifacts/linux_linux_2.zip
+          if-no-files-found: ignore
+      - name: Upload linux Web preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux_web
+          path: artifacts/linux_web.zip
+          if-no-files-found: ignore
+      - name: Upload linux Web 2 preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux_web_2
+          path: artifacts/linux_web_2.zip
+          if-no-files-found: ignore
+      - name: Upload linux Android preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux_android
+          path: artifacts/linux_android.zip
+          if-no-files-found: ignore
+      - name: Upload linux Android (copy) preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux_android__copy_
+          path: artifacts/linux_android__copy_.zip
+          if-no-files-found: ignore
+      - name: Upload web Web preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: web_web
+          path: artifacts/web_web.zip
+          if-no-files-found: ignore
+      - name: Upload web Web 2 preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: web_web_2
+          path: artifacts/web_web_2.zip
+          if-no-files-found: ignore
+      - name: Upload android Android preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: android_android
+          path: artifacts/android_android.zip
+          if-no-files-found: ignore
+      - name: Upload android Android (copy) preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: android_android__copy_
+          path: artifacts/android_android__copy_.zip
           if-no-files-found: ignore
 
   export-macos:
@@ -217,38 +269,49 @@ jobs:
         run: |
           if [ -f export_presets.cfg ]; then
             mkdir -p artifacts
-            game="${GITHUB_REPO_NAME}"
-            _name="" _export_path=""
+            _name="" _platform="" _export_path=""
             _flush() {
               [ -z "$_name" ] && return
+              case "$_platform" in
+                "Mac OSX"|iOS|visionOS) ;;
+                *) return ;;
+              esac
               _ps=$(echo "$_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
               if [ -n "$_export_path" ] && [ -f "$_export_path" ]; then
                 _dir=$(dirname "$_export_path")
-                zip -qr "artifacts/${game}_${_ps}.zip" "$_dir"
+                zip -qr "artifacts/${_platform}_${_ps}.zip" "$_dir"
               elif [ -d "export/$_ps" ]; then
                 _count=$(find "export/$_ps" -maxdepth 1 -type f | wc -l)
                 if [ "$_count" -gt 0 ]; then
-                  zip -qr "artifacts/${game}_${_ps}.zip" "export/$_ps"
+                  zip -qr "artifacts/${_platform}_${_ps}.zip" "export/$_ps"
                 fi
               fi
             }
             while IFS= read -r line; do
               if [[ "$line" =~ ^\[preset\. ]]; then
                 _flush
-                _name="" _export_path=""
+                _name="" _platform="" _export_path=""
               fi
               [[ "$line" =~ ^name=\"([^\"]*)\" ]] && _name="${BASH_REMATCH[1]}"
+              [[ "$line" =~ ^platform=\"([^\"]*)\" ]] && _platform="${BASH_REMATCH[1]}"
               [[ "$line" =~ ^export_path=\"([^\"]*)\" ]] && _export_path="${BASH_REMATCH[1]}"
             done < export_presets.cfg
             _flush
           fi
-      - name: Upload artifacts
+      - name: Upload ios iOS preset
         uses: actions/upload-artifact@v7
         with:
-          name: exports-macos
-          path: artifacts/*.zip
+          name: ios_ios
+          path: artifacts/ios_ios.zip
+          if-no-files-found: ignore
+      - name: Upload ios iOS 2 preset
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios_ios_2
+          path: artifacts/ios_ios_2.zip
           if-no-files-found: ignore
 
+    parts.push(s(r#"
   package:
     needs: [export-windows, export-linux, export-macos]
     if: always() && (needs.export-windows.result == 'success' || needs.export-linux.result == 'success' || needs.export-macos.result == 'success')
@@ -257,16 +320,15 @@ jobs:
       - name: Download all exports
         uses: actions/download-artifact@v8
         with:
-          pattern: exports-*
+          pattern: '*_*'
           path: downloads/
 
       - name: Create aggregated zip
         run: |
-          cd downloads
           mkdir -p flattened
-          for z in exports-*/*.zip; do unzip -qo "$z" -d flattened; done
+          find downloads/ -name '*.zip' -exec unzip -qo {} -d flattened \;
           cd flattened
-          zip -qr ../../all_exports.zip .
+          zip -qr ../all_exports.zip .
 
       - name: Upload aggregated artifact
         uses: actions/upload-artifact@v7
