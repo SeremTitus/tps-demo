@@ -72,9 +72,6 @@ jobs:
         run: gdio templates add 4.7.2 --windows
       - name: Export Windows presets
         run: gdio build --windows
-      - name: Set repo name
-        shell: bash
-        run: echo "GITHUB_REPO_NAME=${GITHUB_REPOSITORY##*/}" >> "$GITHUB_ENV"
       - name: Package artifacts
         shell: pwsh
         run: |
@@ -105,6 +102,12 @@ jobs:
               }
             }
           }
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: exports-windows
+          path: artifacts/*.zip
+          if-no-files-found: ignore
   export-linux:
     needs: detect
     if: needs.detect.outputs.has_linux == 'true' || needs.detect.outputs.has_web == 'true' || needs.detect.outputs.has_android == 'true'
@@ -134,9 +137,6 @@ jobs:
         run: gdio templates add 4.7.2 --android
       - name: Export Android presets
         run: gdio build --android
-      - name: Set repo name
-        shell: bash
-        run: echo "GITHUB_REPO_NAME=${GITHUB_REPOSITORY##*/}" >> "$GITHUB_ENV"
       - name: Package artifacts
         shell: bash
         run: |
@@ -171,65 +171,11 @@ jobs:
             done < export_presets.cfg
             _flush
           fi
-      - name: Upload linux Linux preset
+      - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: linux_linux
-          path: artifacts/linux_linux.zip
-          if-no-files-found: ignore
-      - name: Upload linux Linux 2 preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux_linux_2
-          path: artifacts/linux_linux_2.zip
-          if-no-files-found: ignore
-      - name: Upload linux Web preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux_web
-          path: artifacts/linux_web.zip
-          if-no-files-found: ignore
-      - name: Upload linux Web 2 preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux_web_2
-          path: artifacts/linux_web_2.zip
-          if-no-files-found: ignore
-      - name: Upload linux Android preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux_android
-          path: artifacts/linux_android.zip
-          if-no-files-found: ignore
-      - name: Upload linux Android (copy) preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux_android__copy_
-          path: artifacts/linux_android__copy_.zip
-          if-no-files-found: ignore
-      - name: Upload web Web preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: web_web
-          path: artifacts/web_web.zip
-          if-no-files-found: ignore
-      - name: Upload web Web 2 preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: web_web_2
-          path: artifacts/web_web_2.zip
-          if-no-files-found: ignore
-      - name: Upload android Android preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: android_android
-          path: artifacts/android_android.zip
-          if-no-files-found: ignore
-      - name: Upload android Android (copy) preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: android_android__copy_
-          path: artifacts/android_android__copy_.zip
+          name: exports-linux
+          path: artifacts/*.zip
           if-no-files-found: ignore
 
   export-macos:
@@ -261,9 +207,6 @@ jobs:
         run: gdio templates add 4.7.2 --visionos
       - name: Export visionOS presets
         run: gdio build --visionos
-      - name: Set repo name
-        shell: bash
-        run: echo "GITHUB_REPO_NAME=${GITHUB_REPOSITORY##*/}" >> "$GITHUB_ENV"
       - name: Package artifacts
         shell: bash
         run: |
@@ -298,17 +241,11 @@ jobs:
             done < export_presets.cfg
             _flush
           fi
-      - name: Upload ios iOS preset
+      - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ios_ios
-          path: artifacts/ios_ios.zip
-          if-no-files-found: ignore
-      - name: Upload ios iOS 2 preset
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios_ios_2
-          path: artifacts/ios_ios_2.zip
+          name: exports-macos
+          path: artifacts/*.zip
           if-no-files-found: ignore
 
   package:
@@ -319,7 +256,7 @@ jobs:
       - name: Download all exports
         uses: actions/download-artifact@v8
         with:
-          pattern: '*_*'
+          pattern: exports-*
           path: downloads/
 
       - name: Create aggregated zip
