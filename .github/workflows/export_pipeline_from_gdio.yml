@@ -86,40 +86,21 @@ jobs:
             switch -Regex -File export_presets.cfg {
               '^\[preset' { if ($cur.name) { $presets += [pscustomobject]$cur }; $cur = @{} }
               '^name="([^"]*)"'              { $cur.name = $Matches[1] }
-              '^platform="([^"]*)"'          { $cur.platform = $Matches[1] }
               '^export_path="([^"]*)"'       { $cur.export_path = $Matches[1] }
-              '^binary_format/architecture="([^"]*)"' { $cur.arch = $Matches[1] }
             }
             if ($cur.name) { $presets += [pscustomobject]$cur }
             foreach ($p in $presets) {
-              $plat = switch ($p.platform) {
-                { $_ -in "Windows","Windows Desktop" } { "windows" }
-                { $_ -in "Linux","Linux/X11" } { "linux" }
-                { $_ -in "macOS","Mac OSX" } { "macos" }
-                { $_ -in "Web","HTML5" } { "web" }
-                "Android" { "android" }
-                "iOS" { "ios" }
-                "visionOS" { "visionos" }
-                default { $p.platform.ToLower() }
-              }
               $ps = ($p.name.ToLower() -replace '[^a-z0-9]','_')
-              $pj = ($game.ToLower() -replace '[^a-z0-9]','_')
-              $arch = if ($p.arch) { $p.arch } else { "x86_64" }
-              if ($p.export_path) { $file = $p.export_path }
-              else {
-                $file = switch ($plat) {
-                  "web"         { "export/$ps/index.html" }
-                  "linux"       { "export/$ps/${pj}.${arch}" }
-                  "windows"     { "export/$ps/${pj}.exe" }
-                  "macos"       { "export/$ps/${pj}.app" }
-                  "android"     { "export/$ps/${pj}.apk" }
-                  { $_ -in "ios","visionos" } { "export/$ps/${pj}.ipa" }
-                  default       { "export/$ps/${pj}" }
+              if ($p.export_path -and (Test-Path $p.export_path)) {
+                $dir = Split-Path $p.export_path -Parent
+                if (Get-ChildItem -Path $dir -File | Select-Object -First 1) {
+                  Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/${game}_${ps}.zip"
                 }
               }
-              if (Test-Path $file) {
-                $dir = Split-Path $file -Parent
-                Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/${game}_${ps}.zip"
+              elseif (Test-Path "export/$ps") {
+                if (Get-ChildItem -Path "export/$ps" -File | Select-Object -First 1) {
+                  Compress-Archive -Path "export/$ps/*" -DestinationPath "artifacts/${game}_${ps}.zip"
+                }
               }
             }
           }
@@ -168,48 +149,27 @@ jobs:
           if [ -f export_presets.cfg ]; then
             mkdir -p artifacts
             game="${GITHUB_REPO_NAME}"
-            _name="" _platform="" _export_path="" _arch="x86_64"
+            _name="" _export_path=""
             _flush() {
               [ -z "$_name" ] && return
-              case "$_platform" in
-                "Windows"|"Windows Desktop") _plat="windows" ;;
-                "Linux"|"Linux/X11") _plat="linux" ;;
-                "macOS"|"Mac OSX") _plat="macos" ;;
-                "Web"|"HTML5") _plat="web" ;;
-                "Android") _plat="android" ;;
-                "iOS") _plat="ios" ;;
-                "visionOS") _plat="visionos" ;;
-                *) _plat=$(echo "$_platform" | tr '[:upper:]' '[:lower:]') ;;
-              esac
               _ps=$(echo "$_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
-              _pj=$(echo "$game" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
-              if [ -n "$_export_path" ]; then
-                _file="$_export_path"
-              else
-                case "$_plat" in
-                  web)         _file="export/$_ps/index.html" ;;
-                  linux)       _file="export/$_ps/${_pj}.${_arch}" ;;
-                  windows)     _file="export/$_ps/${_pj}.exe" ;;
-                  macos)       _file="export/$_ps/${_pj}.app" ;;
-                  android)     _file="export/$_ps/${_pj}.apk" ;;
-                  ios|visionos) _file="export/$_ps/${_pj}.ipa" ;;
-                  *)           _file="export/$_ps/${_pj}" ;;
-                esac
-              fi
-              if [ -f "$_file" ]; then
-                _dir=$(dirname "$_file")
+              if [ -n "$_export_path" ] && [ -f "$_export_path" ]; then
+                _dir=$(dirname "$_export_path")
                 zip -qr "artifacts/${game}_${_ps}.zip" "$_dir"
+              elif [ -d "export/$_ps" ]; then
+                _count=$(find "export/$_ps" -maxdepth 1 -type f | wc -l)
+                if [ "$_count" -gt 0 ]; then
+                  zip -qr "artifacts/${game}_${_ps}.zip" "export/$_ps"
+                fi
               fi
             }
             while IFS= read -r line; do
               if [[ "$line" =~ ^\[preset\. ]]; then
                 _flush
-                _name="" _platform="" _export_path="" _arch="x86_64"
+                _name="" _export_path=""
               fi
               [[ "$line" =~ ^name=\"([^\"]*)\" ]] && _name="${BASH_REMATCH[1]}"
-              [[ "$line" =~ ^platform=\"([^\"]*)\" ]] && _platform="${BASH_REMATCH[1]}"
               [[ "$line" =~ ^export_path=\"([^\"]*)\" ]] && _export_path="${BASH_REMATCH[1]}"
-              [[ "$line" =~ ^binary_format/architecture=\"([^\"]*)\" ]] && _arch="${BASH_REMATCH[1]}"
             done < export_presets.cfg
             _flush
           fi
@@ -258,48 +218,27 @@ jobs:
           if [ -f export_presets.cfg ]; then
             mkdir -p artifacts
             game="${GITHUB_REPO_NAME}"
-            _name="" _platform="" _export_path="" _arch="x86_64"
+            _name="" _export_path=""
             _flush() {
               [ -z "$_name" ] && return
-              case "$_platform" in
-                "Windows"|"Windows Desktop") _plat="windows" ;;
-                "Linux"|"Linux/X11") _plat="linux" ;;
-                "macOS"|"Mac OSX") _plat="macos" ;;
-                "Web"|"HTML5") _plat="web" ;;
-                "Android") _plat="android" ;;
-                "iOS") _plat="ios" ;;
-                "visionOS") _plat="visionos" ;;
-                *) _plat=$(echo "$_platform" | tr '[:upper:]' '[:lower:]') ;;
-              esac
               _ps=$(echo "$_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
-              _pj=$(echo "$game" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
-              if [ -n "$_export_path" ]; then
-                _file="$_export_path"
-              else
-                case "$_plat" in
-                  web)         _file="export/$_ps/index.html" ;;
-                  linux)       _file="export/$_ps/${_pj}.${_arch}" ;;
-                  windows)     _file="export/$_ps/${_pj}.exe" ;;
-                  macos)       _file="export/$_ps/${_pj}.app" ;;
-                  android)     _file="export/$_ps/${_pj}.apk" ;;
-                  ios|visionos) _file="export/$_ps/${_pj}.ipa" ;;
-                  *)           _file="export/$_ps/${_pj}" ;;
-                esac
-              fi
-              if [ -f "$_file" ]; then
-                _dir=$(dirname "$_file")
+              if [ -n "$_export_path" ] && [ -f "$_export_path" ]; then
+                _dir=$(dirname "$_export_path")
                 zip -qr "artifacts/${game}_${_ps}.zip" "$_dir"
+              elif [ -d "export/$_ps" ]; then
+                _count=$(find "export/$_ps" -maxdepth 1 -type f | wc -l)
+                if [ "$_count" -gt 0 ]; then
+                  zip -qr "artifacts/${game}_${_ps}.zip" "export/$_ps"
+                fi
               fi
             }
             while IFS= read -r line; do
               if [[ "$line" =~ ^\[preset\. ]]; then
                 _flush
-                _name="" _platform="" _export_path="" _arch="x86_64"
+                _name="" _export_path=""
               fi
               [[ "$line" =~ ^name=\"([^\"]*)\" ]] && _name="${BASH_REMATCH[1]}"
-              [[ "$line" =~ ^platform=\"([^\"]*)\" ]] && _platform="${BASH_REMATCH[1]}"
               [[ "$line" =~ ^export_path=\"([^\"]*)\" ]] && _export_path="${BASH_REMATCH[1]}"
-              [[ "$line" =~ ^binary_format/architecture=\"([^\"]*)\" ]] && _arch="${BASH_REMATCH[1]}"
             done < export_presets.cfg
             _flush
           fi
