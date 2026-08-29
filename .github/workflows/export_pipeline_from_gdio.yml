@@ -1,0 +1,280 @@
+name: gdio Export Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.7.2-stable"
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      has_windows: ${{ steps.check.outputs.has_windows }}
+      has_linux: ${{ steps.check.outputs.has_linux }}
+      has_macos: ${{ steps.check.outputs.has_macos }}
+      has_web: ${{ steps.check.outputs.has_web }}
+      has_android: ${{ steps.check.outputs.has_android }}
+      has_ios: ${{ steps.check.outputs.has_ios }}
+      has_visionos: ${{ steps.check.outputs.has_visionos }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect platforms from export presets
+        id: check
+        shell: bash
+        run: |
+          if [ ! -f export_presets.cfg ]; then
+            echo "No export_presets.cfg found."
+            for p in has_windows has_linux has_macos has_web has_android has_ios has_visionos; do
+              echo "$p=false" >> "$GITHUB_OUTPUT"
+            done
+            exit 0
+          fi
+          has_windows=false; has_linux=false; has_macos=false
+          has_web=false; has_android=false; has_ios=false; has_visionos=false
+          while IFS= read -r line; do
+            val="${line#*\"}"; val="${val%\"*}"
+            case "$val" in
+              "Windows"|"Windows Desktop") has_windows=true ;;
+              "Linux"|"Linux/X11") has_linux=true ;;
+              "macOS"|"Mac OSX") has_macos=true ;;
+              "Web"|"HTML5") has_web=true ;;
+              "Android") has_android=true ;;
+              "iOS") has_ios=true ;;
+              "visionOS") has_visionos=true ;;
+            esac
+          done < <(grep '^platform=' export_presets.cfg)
+          echo "has_windows=$has_windows" >> "$GITHUB_OUTPUT"
+          echo "has_linux=$has_linux" >> "$GITHUB_OUTPUT"
+          echo "has_macos=$has_macos" >> "$GITHUB_OUTPUT"
+          echo "has_web=$has_web" >> "$GITHUB_OUTPUT"
+          echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
+          echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
+          echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+  export-windows:
+    needs: detect
+    if: needs.detect.outputs.has_windows == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gdio
+        shell: pwsh
+        run: curl.exe -fsSL https://gdio.seremtitus.co.ke/install.ps1 | powershell -Command -
+      - name: Bind editor
+        run: gdio bind 4.7.2-stable
+      - name: Detect export presets
+        id: presets
+        shell: bash
+        run: |
+          if [ ! -f export_presets.cfg ]; then
+            echo "No export_presets.cfg found. Skipping export."
+            for p in has_windows has_linux has_macos has_web has_android has_ios has_visionos; do
+              echo "$p=false" >> "$GITHUB_OUTPUT"
+            done
+            exit 0
+          fi
+          has_windows=false; has_linux=false; has_macos=false
+          has_web=false; has_android=false; has_ios=false; has_visionos=false
+          while IFS= read -r line; do
+            val="${line#*\"}"; val="${val%\"*}"
+            case "$val" in
+              "Windows"|"Windows Desktop") has_windows=true ;;
+              "Linux"|"Linux/X11") has_linux=true ;;
+              "macOS"|"Mac OSX") has_macos=true ;;
+              "Web"|"HTML5") has_web=true ;;
+              "Android") has_android=true ;;
+              "iOS") has_ios=true ;;
+              "visionOS") has_visionos=true ;;
+            esac
+          done < <(grep '^platform=' export_presets.cfg)
+          echo "has_windows=$has_windows" >> "$GITHUB_OUTPUT"
+          echo "has_linux=$has_linux" >> "$GITHUB_OUTPUT"
+          echo "has_macos=$has_macos" >> "$GITHUB_OUTPUT"
+          echo "has_web=$has_web" >> "$GITHUB_OUTPUT"
+          echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
+          echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
+          echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+      - name: Export Windows presets
+        if: steps.presets.outputs.has_windows == 'true'
+        run: gdio build --windows
+      - name: Set repo name
+        shell: bash
+        run: echo "GITHUB_REPO_NAME=${GITHUB_REPOSITORY##*/}" >> "$GITHUB_ENV"
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          if (Test-Path export) {
+            New-Item -ItemType Directory -Force -Path artifacts
+            Get-ChildItem -Path export -Recurse -File | ForEach-Object {
+              $preset = $_.Directory.Name
+              $repo = "$env:GITHUB_REPO_NAME"
+              Compress-Archive -Path $_.FullName -DestinationPath "artifacts/${repo}_windows_${preset}.zip"
+            }
+          }
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: exports-windows
+          path: artifacts/*.zip
+          if-no-files-found: ignore
+
+  export-linux:
+    needs: detect
+    if: needs.detect.outputs.has_linux == 'true' || needs.detect.outputs.has_web == 'true' || needs.detect.outputs.has_android == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gdio
+        shell: bash
+        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash
+      - name: Bind editor
+        run: gdio bind 4.7.2-stable
+      - name: Detect export presets
+        id: presets
+        shell: bash
+        run: |
+          if [ ! -f export_presets.cfg ]; then
+            echo "No export_presets.cfg found. Skipping export."
+            for p in has_windows has_linux has_macos has_web has_android has_ios has_visionos; do
+              echo "$p=false" >> "$GITHUB_OUTPUT"
+            done
+            exit 0
+          fi
+          has_windows=false; has_linux=false; has_macos=false
+          has_web=false; has_android=false; has_ios=false; has_visionos=false
+          while IFS= read -r line; do
+            val="${line#*\"}"; val="${val%\"*}"
+            case "$val" in
+              "Windows"|"Windows Desktop") has_windows=true ;;
+              "Linux"|"Linux/X11") has_linux=true ;;
+              "macOS"|"Mac OSX") has_macos=true ;;
+              "Web"|"HTML5") has_web=true ;;
+              "Android") has_android=true ;;
+              "iOS") has_ios=true ;;
+              "visionOS") has_visionos=true ;;
+            esac
+          done < <(grep '^platform=' export_presets.cfg)
+          echo "has_windows=$has_windows" >> "$GITHUB_OUTPUT"
+          echo "has_linux=$has_linux" >> "$GITHUB_OUTPUT"
+          echo "has_macos=$has_macos" >> "$GITHUB_OUTPUT"
+          echo "has_web=$has_web" >> "$GITHUB_OUTPUT"
+          echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
+          echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
+          echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+      - name: Export Linux presets
+        if: steps.presets.outputs.has_linux == 'true'
+        run: gdio build --linux
+      - name: Export Web presets
+        if: steps.presets.outputs.has_web == 'true'
+        run: gdio build --web
+      - name: Export Android presets
+        if: steps.presets.outputs.has_android == 'true'
+        run: gdio build --android
+      - name: Set repo name
+        shell: bash
+        run: echo "GITHUB_REPO_NAME=${GITHUB_REPOSITORY##*/}" >> "$GITHUB_ENV"
+      - name: Package artifacts
+        shell: bash
+        run: |
+          if [ -d export ]; then
+            mkdir -p artifacts
+            find export -type f | while read -r f; do
+              dir=$(dirname "$f")
+              preset=$(basename "$dir")
+              base=$(basename "$f")
+              game="${GITHUB_REPO_NAME}"
+              platform="linux"
+              case "$base" in
+                *.html|*.js|*.wasm) platform="web" ;;
+                *.apk) platform="android" ;;
+              esac
+              zip "artifacts/${game}_${platform}_${preset}.zip" -j "$f"
+            done
+          fi
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: exports-linux
+          path: artifacts/*.zip
+          if-no-files-found: ignore
+
+  export-macos:
+    needs: detect
+    if: needs.detect.outputs.has_macos == 'true' || needs.detect.outputs.has_ios == 'true' || needs.detect.outputs.has_visionos == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gdio
+        shell: bash
+        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash
+      - name: Bind editor
+        run: gdio bind 4.7.2-stable
+      - name: Detect export presets
+        id: presets
+        shell: bash
+        run: |
+          if [ ! -f export_presets.cfg ]; then
+            echo "No export_presets.cfg found. Skipping export."
+            for p in has_windows has_linux has_macos has_web has_android has_ios has_visionos; do
+              echo "$p=false" >> "$GITHUB_OUTPUT"
+            done
+            exit 0
+          fi
+          has_windows=false; has_linux=false; has_macos=false
+          has_web=false; has_android=false; has_ios=false; has_visionos=false
+          while IFS= read -r line; do
+            val="${line#*\"}"; val="${val%\"*}"
+            case "$val" in
+              "Windows"|"Windows Desktop") has_windows=true ;;
+              "Linux"|"Linux/X11") has_linux=true ;;
+              "macOS"|"Mac OSX") has_macos=true ;;
+              "Web"|"HTML5") has_web=true ;;
+              "Android") has_android=true ;;
+              "iOS") has_ios=true ;;
+              "visionOS") has_visionos=true ;;
+            esac
+          done < <(grep '^platform=' export_presets.cfg)
+          echo "has_windows=$has_windows" >> "$GITHUB_OUTPUT"
+          echo "has_linux=$has_linux" >> "$GITHUB_OUTPUT"
+          echo "has_macos=$has_macos" >> "$GITHUB_OUTPUT"
+          echo "has_web=$has_web" >> "$GITHUB_OUTPUT"
+          echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
+          echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
+          echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+      - name: Export macOS presets
+        if: steps.presets.outputs.has_macos == 'true'
+        run: gdio build --macos
+      - name: Export iOS presets
+        if: steps.presets.outputs.has_ios == 'true'
+        run: gdio build --ios
+      - name: Export visionOS presets
+        if: steps.presets.outputs.has_visionos == 'true'
+        run: gdio build --visionos
+      - name: Set repo name
+        shell: bash
+        run: echo "GITHUB_REPO_NAME=${GITHUB_REPOSITORY##*/}" >> "$GITHUB_ENV"
+      - name: Package artifacts
+        shell: bash
+        run: |
+          if [ -d export ]; then
+            mkdir -p artifacts
+            find export -type f | while read -r f; do
+              dir=$(dirname "$f")
+              preset=$(basename "$dir")
+              base=$(basename "$f")
+              game="${GITHUB_REPO_NAME}"
+              platform="macos"
+              case "$base" in
+                *.ipa) platform="ios" ;;
+              esac
+              zip "artifacts/${game}_${platform}_${preset}.zip" -j "$f"
+            done
+          fi
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: exports-macos
+          path: artifacts/*.zip
+          if-no-files-found: ignore
