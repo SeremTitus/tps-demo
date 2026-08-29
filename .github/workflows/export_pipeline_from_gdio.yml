@@ -63,45 +63,14 @@ jobs:
       - name: Add gdio to PATH
         shell: pwsh
         run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Add Godot editor
+        run: gdio add 4.7.2 
       - name: Bind editor
-        run: gdio bind 4.7.2
-      - name: Detect export presets
-        id: presets
-        shell: bash
-        run: |
-          if [ ! -f export_presets.cfg ]; then
-            echo "No export_presets.cfg found. Skipping export."
-            for p in has_windows has_linux has_macos has_web has_android has_ios has_visionos; do
-              echo "$p=false" >> "$GITHUB_OUTPUT"
-            done
-            exit 0
-          fi
-          has_windows=false; has_linux=false; has_macos=false
-          has_web=false; has_android=false; has_ios=false; has_visionos=false
-          while IFS= read -r line; do
-            val="${line#*\"}"; val="${val%\"*}"
-            case "$val" in
-              "Windows"|"Windows Desktop") has_windows=true ;;
-              "Linux"|"Linux/X11") has_linux=true ;;
-              "macOS"|"Mac OSX") has_macos=true ;;
-              "Web"|"HTML5") has_web=true ;;
-              "Android") has_android=true ;;
-              "iOS") has_ios=true ;;
-              "visionOS") has_visionos=true ;;
-            esac
-          done < <(grep '^platform=' export_presets.cfg)
-          echo "has_windows=$has_windows" >> "$GITHUB_OUTPUT"
-          echo "has_linux=$has_linux" >> "$GITHUB_OUTPUT"
-          echo "has_macos=$has_macos" >> "$GITHUB_OUTPUT"
-          echo "has_web=$has_web" >> "$GITHUB_OUTPUT"
-          echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
-          echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
-          echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+        run: gdio bind 4.7.2 
+
       - name: Download Windows export templates
-        if: steps.presets.outputs.has_windows == 'true'
-        run: gdio templates add 4.7.2-stable --windows
+        run: gdio templates add 4.7.2 --windows
       - name: Export Windows presets
-        if: steps.presets.outputs.has_windows == 'true'
         run: gdio build --windows
       - name: Set repo name
         shell: bash
@@ -136,57 +105,22 @@ jobs:
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
+      - name: Add Godot editor
+        run: gdio add 4.7.2 
       - name: Bind editor
-        run: gdio bind 4.7.2
-      - name: Detect export presets
-        id: presets
-        shell: bash
-        run: |
-          if [ ! -f export_presets.cfg ]; then
-            echo "No export_presets.cfg found. Skipping export."
-            for p in has_windows has_linux has_macos has_web has_android has_ios has_visionos; do
-              echo "$p=false" >> "$GITHUB_OUTPUT"
-            done
-            exit 0
-          fi
-          has_windows=false; has_linux=false; has_macos=false
-          has_web=false; has_android=false; has_ios=false; has_visionos=false
-          while IFS= read -r line; do
-            val="${line#*\"}"; val="${val%\"*}"
-            case "$val" in
-              "Windows"|"Windows Desktop") has_windows=true ;;
-              "Linux"|"Linux/X11") has_linux=true ;;
-              "macOS"|"Mac OSX") has_macos=true ;;
-              "Web"|"HTML5") has_web=true ;;
-              "Android") has_android=true ;;
-              "iOS") has_ios=true ;;
-              "visionOS") has_visionos=true ;;
-            esac
-          done < <(grep '^platform=' export_presets.cfg)
-          echo "has_windows=$has_windows" >> "$GITHUB_OUTPUT"
-          echo "has_linux=$has_linux" >> "$GITHUB_OUTPUT"
-          echo "has_macos=$has_macos" >> "$GITHUB_OUTPUT"
-          echo "has_web=$has_web" >> "$GITHUB_OUTPUT"
-          echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
-          echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
-          echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+        run: gdio bind 4.7.2 
+
       - name: Download Linux export templates
-        if: steps.presets.outputs.has_linux == 'true'
-        run: gdio templates add 4.7.2-stable --linux
+        run: gdio templates add 4.7.2 --linux
       - name: Export Linux presets
-        if: steps.presets.outputs.has_linux == 'true'
         run: gdio build --linux
       - name: Download Web export templates
-        if: steps.presets.outputs.has_web == 'true'
-        run: gdio templates add 4.7.2-stable --web
+        run: gdio templates add 4.7.2 --web
       - name: Export Web presets
-        if: steps.presets.outputs.has_web == 'true'
         run: gdio build --web
       - name: Download Android export templates
-        if: steps.presets.outputs.has_android == 'true'
-        run: gdio templates add 4.7.2-stable --android
+        run: gdio templates add 4.7.2 --android
       - name: Export Android presets
-        if: steps.presets.outputs.has_android == 'true'
         run: gdio build --android
       - name: Set repo name
         shell: bash
@@ -228,57 +162,22 @@ jobs:
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
+      - name: Add Godot editor
+        run: gdio add 4.7.2 
       - name: Bind editor
-        run: gdio bind 4.7.2
-      - name: Detect export presets
-        id: presets
-        shell: bash
-        run: |
-          if [ ! -f export_presets.cfg ]; then
-            echo "No export_presets.cfg found. Skipping export."
-            for p in has_windows has_linux has_macos has_web has_android has_ios has_visionos; do
-              echo "$p=false" >> "$GITHUB_OUTPUT"
-            done
-            exit 0
-          fi
-          has_windows=false; has_linux=false; has_macos=false
-          has_web=false; has_android=false; has_ios=false; has_visionos=false
-          while IFS= read -r line; do
-            val="${line#*\"}"; val="${val%\"*}"
-            case "$val" in
-              "Windows"|"Windows Desktop") has_windows=true ;;
-              "Linux"|"Linux/X11") has_linux=true ;;
-              "macOS"|"Mac OSX") has_macos=true ;;
-              "Web"|"HTML5") has_web=true ;;
-              "Android") has_android=true ;;
-              "iOS") has_ios=true ;;
-              "visionOS") has_visionos=true ;;
-            esac
-          done < <(grep '^platform=' export_presets.cfg)
-          echo "has_windows=$has_windows" >> "$GITHUB_OUTPUT"
-          echo "has_linux=$has_linux" >> "$GITHUB_OUTPUT"
-          echo "has_macos=$has_macos" >> "$GITHUB_OUTPUT"
-          echo "has_web=$has_web" >> "$GITHUB_OUTPUT"
-          echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
-          echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
-          echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+        run: gdio bind 4.7.2 
+
       - name: Download macOS export templates
-        if: steps.presets.outputs.has_macos == 'true'
-        run: gdio templates add 4.7.2-stable --macos
+        run: gdio templates add 4.7.2 --macos
       - name: Export macOS presets
-        if: steps.presets.outputs.has_macos == 'true'
         run: gdio build --macos
       - name: Download iOS export templates
-        if: steps.presets.outputs.has_ios == 'true'
-        run: gdio templates add 4.7.2-stable --ios
+        run: gdio templates add 4.7.2 --ios
       - name: Export iOS presets
-        if: steps.presets.outputs.has_ios == 'true'
         run: gdio build --ios
       - name: Download visionOS export templates
-        if: steps.presets.outputs.has_visionos == 'true'
-        run: gdio templates add 4.7.2-stable --visionos
+        run: gdio templates add 4.7.2 --visionos
       - name: Export visionOS presets
-        if: steps.presets.outputs.has_visionos == 'true'
         run: gdio build --visionos
       - name: Set repo name
         shell: bash
