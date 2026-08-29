@@ -1,8 +1,6 @@
 name: gdio Export Pipeline
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 env:
@@ -62,6 +60,9 @@ jobs:
       - name: Install gdio
         shell: pwsh
         run: curl.exe -fsSL https://gdio.seremtitus.co.ke/install.ps1 | powershell -Command -
+      - name: Add gdio to PATH
+        shell: pwsh
+        run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Bind editor
         run: gdio bind 4.7.2-stable
       - name: Detect export presets
@@ -129,6 +130,9 @@ jobs:
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash
+      - name: Add gdio to PATH
+        shell: bash
+        run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
       - name: Bind editor
         run: gdio bind 4.7.2-stable
       - name: Detect export presets
@@ -209,6 +213,9 @@ jobs:
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash
+      - name: Add gdio to PATH
+        shell: bash
+        run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
       - name: Bind editor
         run: gdio bind 4.7.2-stable
       - name: Detect export presets
