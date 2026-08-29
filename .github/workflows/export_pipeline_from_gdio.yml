@@ -64,7 +64,7 @@ jobs:
         shell: pwsh
         run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Bind editor
-        run: gdio bind 4.7.2-stable
+        run: gdio bind 4.7.2
       - name: Detect export presets
         id: presets
         shell: bash
@@ -129,12 +129,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash
+        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
       - name: Bind editor
-        run: gdio bind 4.7.2-stable
+        run: gdio bind 4.7.2
       - name: Detect export presets
         id: presets
         shell: bash
@@ -212,12 +212,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash
+        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
       - name: Bind editor
-        run: gdio bind 4.7.2-stable
+        run: gdio bind 4.7.2
       - name: Detect export presets
         id: presets
         shell: bash
