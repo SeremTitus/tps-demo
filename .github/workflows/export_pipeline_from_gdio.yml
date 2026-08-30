@@ -59,7 +59,11 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install gdio
         shell: pwsh
-        run: curl.exe -fsSL https://gdio.seremtitus.co.ke/install.ps1 | powershell -Command -
+        run: |
+          $script = "$env:TEMP\gdio_install.ps1"
+          curl.exe -fsSL -o $script https://gdio.seremtitus.co.ke/install.ps1
+          powershell -ExecutionPolicy Bypass -File $script
+          Remove-Item $script -ErrorAction SilentlyContinue
       - name: Add gdio to PATH
         shell: pwsh
         run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
