@@ -146,6 +146,13 @@ jobs:
           } else {
             Write-Host "No export_presets.cfg found"
           }
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: exports-windows
+          path: artifacts/*.zip
+          if-no-files-found: ignore
   export-linux:
     needs: detect
     if: needs.detect.outputs.has_linux == 'true' || needs.detect.outputs.has_web == 'true' || needs.detect.outputs.has_android == 'true'
@@ -222,41 +229,12 @@ jobs:
             echo "Artifacts directory contents:"
             find artifacts -type f 2>/dev/null || echo "  (empty)"
           fi
-      - name: Upload Linux
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: 
-          path: artifacts/.zip
-          if-no-files-found: ignore
-      - name: Upload Linux 2
-        uses: actions/upload-artifact@v7
-        with:
-          name: 
-          path: artifacts/.zip
-          if-no-files-found: ignore
-      - name: Upload Web
-        uses: actions/upload-artifact@v7
-        with:
-          name: 
-          path: artifacts/.zip
-          if-no-files-found: ignore
-      - name: Upload Web 2
-        uses: actions/upload-artifact@v7
-        with:
-          name: 
-          path: artifacts/.zip
-          if-no-files-found: ignore
-      - name: Upload Android
-        uses: actions/upload-artifact@v7
-        with:
-          name: 
-          path: artifacts/.zip
-          if-no-files-found: ignore
-      - name: Upload Android (copy)
-        uses: actions/upload-artifact@v7
-        with:
-          name: 
-          path: artifacts/.zip
+          name: exports-linux
+          path: artifacts/*.zip
           if-no-files-found: ignore
   export-macos:
     needs: detect
@@ -333,15 +311,10 @@ jobs:
             echo "Artifacts directory contents:"
             find artifacts -type f 2>/dev/null || echo "  (empty)"
           fi
-      - name: Upload iOS
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: 
-          path: artifacts/.zip
-          if-no-files-found: ignore
-      - name: Upload iOS 2
-        uses: actions/upload-artifact@v7
-        with:
-          name: 
-          path: artifacts/.zip
+          name: exports-macos
+          path: artifacts/*.zip
           if-no-files-found: ignore
