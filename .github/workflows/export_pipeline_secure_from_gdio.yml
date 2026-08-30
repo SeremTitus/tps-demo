@@ -1,0 +1,601 @@
+name: gdio Secure Export Pipeline
+
+on:
+  workflow_dispatch:
+
+env:
+  GODOT_TAG: "4.7.2-stable"
+  CSHARP: "false"
+  SCRIPT_AES256_ENCRYPTION_KEY: ${{ secrets.SCRIPT_AES256_ENCRYPTION_KEY }}
+  SCONSFLAGS: verbose=yes warnings=all
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      has_windows: ${{ steps.check.outputs.has_windows }}
+      has_linux: ${{ steps.check.outputs.has_linux }}
+      has_macos: ${{ steps.check.outputs.has_macos }}
+      has_web: ${{ steps.check.outputs.has_web }}
+      has_android: ${{ steps.check.outputs.has_android }}
+      has_ios: ${{ steps.check.outputs.has_ios }}
+      has_visionos: ${{ steps.check.outputs.has_visionos }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Detect platforms from export presets
+        id: check
+        shell: bash
+        run: |
+          if [ ! -f export_presets.cfg ]; then
+            echo "No export_presets.cfg found."
+            for p in has_windows has_linux has_macos has_web has_android has_ios has_visionos; do
+              echo "$p=false" >> "$GITHUB_OUTPUT"
+            done
+            exit 0
+          fi
+          has_windows=false; has_linux=false; has_macos=false
+          has_web=false; has_android=false; has_ios=false; has_visionos=false
+          while IFS= read -r line; do
+            val="${line#*\"}"; val="${val%\"*}"
+            case "$val" in
+              "Windows"|"Windows Desktop") has_windows=true ;;
+              "Linux"|"Linux/X11") has_linux=true ;;
+              "macOS"|"Mac OSX") has_macos=true ;;
+              "Web"|"HTML5") has_web=true ;;
+              "Android") has_android=true ;;
+              "iOS") has_ios=true ;;
+              "visionOS") has_visionos=true ;;
+            esac
+          done < <(grep '^platform=' export_presets.cfg)
+          echo "has_windows=$has_windows" >> "$GITHUB_OUTPUT"
+          echo "has_linux=$has_linux" >> "$GITHUB_OUTPUT"
+          echo "has_macos=$has_macos" >> "$GITHUB_OUTPUT"
+          echo "has_web=$has_web" >> "$GITHUB_OUTPUT"
+          echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
+          echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
+          echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+
+  build-and-export-linux:
+    needs: detect
+    if: needs.detect.outputs.has_linux == 'true' || needs.detect.outputs.has_web == 'true' || needs.detect.outputs.has_android == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        if: env.CSHARP == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+          cache: true
+
+      - name: Validate AES-256 encryption key
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$SCRIPT_AES256_ENCRYPTION_KEY"
+          if [ -z "${SCRIPT_AES256_ENCRYPTION_KEY:-}" ]; then
+            echo "ERROR: SCRIPT_AES256_ENCRYPTION_KEY is empty."
+            exit 1
+          fi
+          if ! [[ "$SCRIPT_AES256_ENCRYPTION_KEY" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Key must contain exactly 64 hexadecimal characters."
+            exit 1
+          fi
+          echo "[OK] AES-256 key format is valid."
+
+      - name: Cache SCons build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.scons_cache
+            godot/.scons_cache
+          key: scons-linux-${{ env.GODOT_TAG }}-${{ hashFiles('godot/**') }}
+          restore-keys: scons-linux-${{ env.GODOT_TAG }}
+
+      - name: Cache Godot source
+        uses: actions/cache@v6
+        with:
+          path: godot
+          key: godot-src-${{ env.GODOT_TAG }}
+          restore-keys: godot-src-
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential scons pkg-config python3 python3-pip \
+            mingw-w64 clang zip unzip curl git cmake
+          sudo update-alternatives \
+            --install /usr/bin/x86_64-w64-mingw32-g++ x86_64-w64-mingw32-g++ \
+            /usr/bin/x86_64-w64-mingw32-g++-posix 100
+          sudo update-alternatives \
+            --install /usr/bin/x86_64-w64-mingw32-gcc x86_64-w64-mingw32-gcc \
+            /usr/bin/x86_64-w64-mingw32-gcc-posix 100
+
+      - name: Clone Godot
+        shell: bash
+        run: |
+          if [ ! -d godot/.git ]; then
+            rm -rf godot
+            git clone --depth 1 --branch "$GODOT_TAG" \
+              https://github.com/godotengine/godot.git godot
+          fi
+
+      - name: Download Godot-Secure script (latest release)
+        shell: bash
+        run: |
+          LATEST_URL=$(curl -fsSL https://api.github.com/repos/KnifeXRage/Godot-Secure/releases/latest \
+            | grep -o '"browser_download_url": *"[^"]*Godot\.Secure\.AES-256\.Universal\.[^"]*\.py"' \
+            | head -1 | sed 's/"browser_download_url": *"//;s/"$//')
+          if [ -z "$LATEST_URL" ]; then
+            echo "ERROR: Could not find Godot-Secure script in latest release"
+            exit 1
+          fi
+          GODOT_SECURE_SCRIPT=$(basename "$LATEST_URL")
+          curl -fsSL -o "$GODOT_SECURE_SCRIPT" "$LATEST_URL"
+          echo "GODOT_SECURE_SCRIPT=$GODOT_SECURE_SCRIPT" >> "$GITHUB_ENV"
+          echo "[OK] Downloaded $GODOT_SECURE_SCRIPT"
+
+      - name: Save baseline
+        shell: bash
+        run: |
+          set -e
+          mkdir -p /tmp/godot_secure_baseline
+          cp godot/core/io/file_access_pack.h /tmp/godot_secure_baseline/
+          cp godot/core/io/file_access_encrypted.h /tmp/godot_secure_baseline/
+          cp godot/core/io/file_access_encrypted.cpp /tmp/godot_secure_baseline/
+
+      - name: Apply Godot Secure
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SCRIPT_AES256_ENCRYPTION_KEY="$SCRIPT_AES256_ENCRYPTION_KEY"
+          set +e
+          printf 'y\nn\nn\ny\n\n' | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
+          SCRIPT_EXIT_CODE=$?
+          set -e
+          if [ ! -s "godot/core/crypto/security_token.h" ]; then
+            echo "ERROR: security_token.h was not generated."
+            tail -200 /tmp/godot_secure_apply.log | sed -E 's/[0-9A-Fa-f]{64}/[REDACTED]/g'
+            exit 1
+          fi
+          if cmp -s /tmp/godot_secure_baseline/file_access_pack.h godot/core/io/file_access_pack.h; then
+            echo "ERROR: file_access_pack.h was not modified."
+            exit 1
+          fi
+          rm -f /tmp/godot_secure_apply.log
+          echo "[OK] Godot Secure applied successfully."
+
+      - name: Build temporary Linux editor for .NET glue
+        if: env.CSHARP == 'true'
+        shell: bash
+        run: |
+          cd godot
+          scons platform=linuxbsd target=editor arch=x86_64 module_mono_enabled=yes debug_symbols=no
+
+      - name: Generate .NET glue
+        if: env.CSHARP == 'true'
+        shell: bash
+        run: |
+          EDITOR=$(find godot/bin -maxdepth 1 -type f -name "godot.linuxbsd.editor.x86_64.mono" | head -n 1)
+          chmod +x "$EDITOR"
+          "$EDITOR" --headless --generate-mono-glue godot/modules/mono/glue
+
+      - name: Configure local Godot NuGet source
+        if: env.CSHARP == 'true'
+        shell: bash
+        run: |
+          mkdir -p "$HOME/godot-nuget"
+          dotnet nuget remove source GodotLocal >/dev/null 2>&1 || true
+          dotnet nuget add source "$HOME/godot-nuget" --name GodotLocal
+
+      - name: Build Linux editor
+        shell: bash
+        run: |
+          cd godot
+          scons platform=linuxbsd target=editor arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no
+
+      - name: Build Linux release template
+        shell: bash
+        run: |
+          cd godot
+          scons platform=linuxbsd target=template_release arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+
+      - name: Build Windows release template (cross-compile)
+        shell: bash
+        run: |
+          cd godot
+          scons platform=windows target=template_release arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no d3d12=no
+
+      - name: Detect binaries
+        id: bins
+        shell: bash
+        run: |
+          LINUX_EDITOR=${{ env.CSHARP == 'true' && 'godot.linuxbsd.editor.x86_64.mono' || 'godot.linuxbsd.editor.x86_64' }}
+          LINUX_TEMPLATE=${{ env.CSHARP == 'true' && 'godot.linuxbsd.template_release.x86_64.mono' || 'godot.linuxbsd.template_release.x86_64' }}
+          WINDOWS_TEMPLATE=${{ env.CSHARP == 'true' && 'godot.windows.template_release.x86_64.mono.exe' || 'godot.windows.template_release.x86_64.exe' }}
+          echo "linux_editor=$(find godot/bin -maxdepth 1 -name "$LINUX_EDITOR" -type f | head -n 1)" >> "$GITHUB_OUTPUT"
+          echo "linux_template=$(find godot/bin -maxdepth 1 -name "$LINUX_TEMPLATE" -type f | head -n 1)" >> "$GITHUB_OUTPUT"
+          echo "windows_template=$(find godot/bin -maxdepth 1 -name "$WINDOWS_TEMPLATE" -type f | head -n 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Package editor
+        shell: bash
+        run: |
+          mkdir -p package_editor
+          cp "${{ steps.bins.outputs.linux_editor }}" package_editor/
+          chmod +x package_editor/*
+
+      - name: Copy GodotSharp
+        if: env.CSHARP == 'true'
+        shell: bash
+        run: |
+          if [ -d "godot/bin/GodotSharp" ]; then
+            cp -a godot/bin/GodotSharp package_editor/GodotSharp
+          fi
+
+      - name: Install gdio
+        shell: bash
+        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
+      - name: Add gdio to PATH
+        shell: bash
+        run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
+
+      - name: Bind compiled editor
+        run: gdio add ./package_editor/* && gdio bind
+
+      - name: Export project
+        run: gdio build
+
+      - name: Package artifacts
+        run: python .github/workflows/ci_package.py exported_on_linux
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: exported_on_linux
+          path: exported_on_linux/
+          if-no-files-found: warn
+
+      - name: Upload Linux editor
+        uses: actions/upload-artifact@v7
+        with:
+          name: godot-secure-linux-editor
+          path: package_editor/**
+
+      - name: Upload Linux template
+        uses: actions/upload-artifact@v7
+        with:
+          name: godot-secure-linux-template
+          path: ${{ steps.bins.outputs.linux_template }}
+
+      - name: Upload Windows template
+        uses: actions/upload-artifact@v7
+        with:
+          name: godot-secure-windows-template
+          path: ${{ steps.bins.outputs.windows_template }}
+
+  build-and-export-windows:
+    needs: detect
+    if: needs.detect.outputs.has_windows == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        if: env.CSHARP == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+          cache: true
+
+      - name: Validate AES-256 encryption key
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$SCRIPT_AES256_ENCRYPTION_KEY"
+          if [ -z "${SCRIPT_AES256_ENCRYPTION_KEY:-}" ]; then
+            echo "ERROR: SCRIPT_AES256_ENCRYPTION_KEY is empty."
+            exit 1
+          fi
+          if ! [[ "$SCRIPT_AES256_ENCRYPTION_KEY" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Key must contain exactly 64 hex characters."
+            exit 1
+          fi
+          echo "[OK] AES-256 key format is valid."
+
+      - name: Cache SCons build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~\AppData\Local\uben2\cache
+            godot\.scons_cache
+          key: scons-windows-${{ env.GODOT_TAG }}-${{ hashFiles('godot/**') }}
+          restore-keys: scons-windows-${{ env.GODOT_TAG }}
+
+      - name: Cache Godot source
+        uses: actions/cache@v6
+        with:
+          path: godot
+          key: godot-src-win-${{ env.GODOT_TAG }}
+          restore-keys: godot-src-win-
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -e
+          choco install -y python3 scons --install-dependents
+          pip install scons
+
+      - name: Clone Godot
+        shell: bash
+        run: |
+          if [ ! -d godot/.git ]; then
+            rm -rf godot
+            git clone --depth 1 --branch "$GODOT_TAG" \
+              https://github.com/godotengine/godot.git godot
+          fi
+
+      - name: Download Godot-Secure script (latest release)
+        shell: bash
+        run: |
+          LATEST_URL=$(curl -fsSL https://api.github.com/repos/KnifeXRage/Godot-Secure/releases/latest \
+            | grep -o '"browser_download_url": *"[^"]*Godot\.Secure\.AES-256\.Universal\.[^"]*\.py"' \
+            | head -1 | sed 's/"browser_download_url": *"//;s/"$//')
+          if [ -z "$LATEST_URL" ]; then
+            echo "ERROR: Could not find Godot-Secure script in latest release"
+            exit 1
+          fi
+          GODOT_SECURE_SCRIPT=$(basename "$LATEST_URL")
+          curl -fsSL -o "$GODOT_SECURE_SCRIPT" "$LATEST_URL"
+          echo "GODOT_SECURE_SCRIPT=$GODOT_SECURE_SCRIPT" >> "$GITHUB_ENV"
+          echo "[OK] Downloaded $GODOT_SECURE_SCRIPT"
+
+      - name: Save baseline
+        shell: bash
+        run: |
+          set -e
+          mkdir -p /tmp/godot_secure_baseline
+          cp godot/core/io/file_access_pack.h /tmp/godot_secure_baseline/
+          cp godot/core/io/file_access_encrypted.h /tmp/godot_secure_baseline/
+          cp godot/core/io/file_access_encrypted.cpp /tmp/godot_secure_baseline/
+
+      - name: Apply Godot Secure
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SCRIPT_AES256_ENCRYPTION_KEY="$SCRIPT_AES256_ENCRYPTION_KEY"
+          set +e
+          printf 'y\nn\nn\ny\n\n' | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
+          set -e
+          if [ ! -s "godot/core/crypto/security_token.h" ]; then
+            echo "ERROR: security_token.h was not generated."
+            exit 1
+          fi
+          echo "[OK] Godot Secure applied."
+
+      - name: Build Windows editor
+        shell: bash
+        run: |
+          cd godot
+          scons platform=windows target=editor arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no d3d12=no
+
+      - name: Build Windows release template
+        shell: bash
+        run: |
+          cd godot
+          scons platform=windows target=template_release arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no d3d12=no
+
+      - name: Detect binaries
+        id: bins
+        shell: bash
+        run: |
+          WINDOWS_EDITOR=${{ env.CSHARP == 'true' && 'godot.windows.editor.x86_64.mono.exe' || 'godot.windows.editor.x86_64.exe' }}
+          echo "windows_editor=$(find godot/bin -maxdepth 1 -name "$WINDOWS_EDITOR" -type f | head -n 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Package editor
+        shell: bash
+        run: |
+          mkdir -p package_editor
+          cp "${{ steps.bins.outputs.windows_editor }}" package_editor/
+
+      - name: Copy GodotSharp
+        if: env.CSHARP == 'true'
+        shell: bash
+        run: |
+          if [ -d "godot/bin/GodotSharp" ]; then
+            cp -a godot/bin/GodotSharp package_editor/GodotSharp
+          fi
+
+      - name: Install gdio
+        shell: pwsh
+        run: |
+          $script = "$env:TEMP\gdio_install.ps1"
+          curl.exe -fsSL -o $script https://gdio.seremtitus.co.ke/install.ps1
+          powershell -ExecutionPolicy Bypass -File $script
+          Remove-Item $script -ErrorAction SilentlyContinue
+      - name: Add gdio to PATH
+        shell: pwsh
+        run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Bind compiled editor
+        run: gdio add ./package_editor/* && gdio bind
+
+      - name: Export project
+        run: gdio build
+
+      - name: Package artifacts
+        run: python .github/workflows/ci_package.py exported_on_windows
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: exported_on_windows
+          path: exported_on_windows/
+          if-no-files-found: warn
+
+      - name: Upload Windows editor
+        uses: actions/upload-artifact@v7
+        with:
+          name: godot-secure-windows-editor
+          path: package_editor/**
+
+  build-and-export-macos:
+    needs: detect
+    if: needs.detect.outputs.has_macos == 'true' || needs.detect.outputs.has_ios == 'true' || needs.detect.outputs.has_visionos == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        if: env.CSHARP == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+          cache: true
+
+      - name: Validate AES-256 encryption key
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$SCRIPT_AES256_ENCRYPTION_KEY"
+          if [ -z "${SCRIPT_AES256_ENCRYPTION_KEY:-}" ]; then
+            echo "ERROR: SCRIPT_AES256_ENCRYPTION_KEY is empty."
+            exit 1
+          fi
+          if ! [[ "$SCRIPT_AES256_ENCRYPTION_KEY" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Key must contain exactly 64 hex characters."
+            exit 1
+          fi
+          echo "[OK] AES-256 key format is valid."
+
+      - name: Cache SCons build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/Library/Caches/SCons
+            godot/.scons_cache
+          key: scons-macos-${{ env.GODOT_TAG }}-${{ hashFiles('godot/**') }}
+          restore-keys: scons-macos-${{ env.GODOT_TAG }}
+
+      - name: Cache Godot source
+        uses: actions/cache@v6
+        with:
+          path: godot
+          key: godot-src-macos-${{ env.GODOT_TAG }}
+          restore-keys: godot-src-macos-
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          brew install scons python3
+
+      - name: Clone Godot
+        shell: bash
+        run: |
+          if [ ! -d godot/.git ]; then
+            rm -rf godot
+            git clone --depth 1 --branch "$GODOT_TAG" \
+              https://github.com/godotengine/godot.git godot
+          fi
+
+      - name: Download Godot-Secure script (latest release)
+        shell: bash
+        run: |
+          LATEST_URL=$(curl -fsSL https://api.github.com/repos/KnifeXRage/Godot-Secure/releases/latest \
+            | grep -o '"browser_download_url": *"[^"]*Godot\.Secure\.AES-256\.Universal\.[^"]*\.py"' \
+            | head -1 | sed 's/"browser_download_url": *"//;s/"$//')
+          if [ -z "$LATEST_URL" ]; then
+            echo "ERROR: Could not find Godot-Secure script in latest release"
+            exit 1
+          fi
+          GODOT_SECURE_SCRIPT=$(basename "$LATEST_URL")
+          curl -fsSL -o "$GODOT_SECURE_SCRIPT" "$LATEST_URL"
+          echo "GODOT_SECURE_SCRIPT=$GODOT_SECURE_SCRIPT" >> "$GITHUB_ENV"
+          echo "[OK] Downloaded $GODOT_SECURE_SCRIPT"
+
+      - name: Save baseline
+        shell: bash
+        run: |
+          set -e
+          mkdir -p /tmp/godot_secure_baseline
+          cp godot/core/io/file_access_pack.h /tmp/godot_secure_baseline/
+          cp godot/core/io/file_access_encrypted.h /tmp/godot_secure_baseline/
+          cp godot/core/io/file_access_encrypted.cpp /tmp/godot_secure_baseline/
+
+      - name: Apply Godot Secure
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SCRIPT_AES256_ENCRYPTION_KEY="$SCRIPT_AES256_ENCRYPTION_KEY"
+          set +e
+          printf 'y\nn\nn\ny\n\n' | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
+          set -e
+          if [ ! -s "godot/core/crypto/security_token.h" ]; then
+            echo "ERROR: security_token.h was not generated."
+            exit 1
+          fi
+          echo "[OK] Godot Secure applied."
+
+      - name: Build macOS editor
+        shell: bash
+        run: |
+          cd godot
+          scons platform=macos target=editor arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no
+
+      - name: Build macOS release template
+        shell: bash
+        run: |
+          cd godot
+          scons platform=macos target=template_release arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+
+      - name: Detect binaries
+        id: bins
+        shell: bash
+        run: |
+          echo "macos_editor=$(find godot/bin -maxdepth 1 -name 'godot.macos.editor.x86_64' -type f | head -n 1)" >> "$GITHUB_OUTPUT"
+          echo "macos_template=$(find godot/bin -maxdepth 1 -name 'godot.macos.template_release.x86_64' -type f | head -n 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Package editor
+        shell: bash
+        run: |
+          mkdir -p package_editor
+          cp "${{ steps.bins.outputs.macos_editor }}" package_editor/
+          chmod +x package_editor/*
+
+      - name: Install gdio
+        shell: bash
+        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
+      - name: Add gdio to PATH
+        shell: bash
+        run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
+
+      - name: Bind compiled editor
+        run: gdio add ./package_editor/* && gdio bind
+
+      - name: Export project
+        run: gdio build
+
+      - name: Package artifacts
+        run: python .github/workflows/ci_package.py exported_on_macos
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: exported_on_macos
+          path: exported_on_macos/
+          if-no-files-found: warn
+
+      - name: Upload macOS editor
+        uses: actions/upload-artifact@v7
+        with:
+          name: godot-secure-macos-editor
+          path: package_editor/**
+
+      - name: Upload macOS template
+        uses: actions/upload-artifact@v7
+        with:
+          name: godot-secure-macos-template
+          path: ${{ steps.bins.outputs.macos_template }}

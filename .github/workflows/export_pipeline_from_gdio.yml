@@ -89,13 +89,13 @@ jobs:
         run: gdio build --windows
 
       - name: Package artifacts
-        run: python .github/workflows/ci_package.py exported_on_windows.zip
+        run: python .github/workflows/ci_package.py exported_on_windows
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: exported_on_windows
-          path: exported_on_windows.zip
+          path: exported_on_windows/
           if-no-files-found: warn
 
   export-linux:
@@ -138,13 +138,13 @@ jobs:
         run: gdio build --android
 
       - name: Package artifacts
-        run: python .github/workflows/ci_package.py exported_on_linux.zip
+        run: python .github/workflows/ci_package.py exported_on_linux
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: exported_on_linux
-          path: exported_on_linux.zip
+          path: exported_on_linux/
           if-no-files-found: warn
 
   export-macos:
@@ -187,11 +187,11 @@ jobs:
         run: gdio build --visionos
 
       - name: Package artifacts
-        run: python .github/workflows/ci_package.py exported_on_macos.zip
+        run: python .github/workflows/ci_package.py exported_on_macos
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: exported_on_macos
-          path: exported_on_macos.zip
+          path: exported_on_macos/
           if-no-files-found: warn
