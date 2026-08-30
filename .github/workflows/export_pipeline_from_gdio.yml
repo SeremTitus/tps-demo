@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
 
 env:
-  GODOT_VERSION: "4.7.2-stable"
+  GODOT_VERSION: "4.7.2"
+  CSHARP: "false"
 
 jobs:
   detect:
@@ -51,12 +52,21 @@ jobs:
           echo "has_android=$has_android" >> "$GITHUB_OUTPUT"
           echo "has_ios=$has_ios" >> "$GITHUB_OUTPUT"
           echo "has_visionos=$has_visionos" >> "$GITHUB_OUTPUT"
+
   export-windows:
     needs: detect
     if: needs.detect.outputs.has_windows == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        if: env.CSHARP == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+          cache: true
+
       - name: Install gdio
         shell: pwsh
         run: |
@@ -67,254 +77,121 @@ jobs:
       - name: Add gdio to PATH
         shell: pwsh
         run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Add Godot editor
-        run: gdio add 4.7.2 
+        run: gdio add ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
       - name: Bind editor
-        run: gdio bind 4.7.2 
+        run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
 
       - name: Download Windows export templates
-        run: gdio templates add 4.7.2 --windows
+        run: gdio templates add ${{ env.GODOT_VERSION }} --windows
       - name: Export Windows presets
         run: gdio build --windows
+
       - name: Package artifacts
-        shell: pwsh
-        run: |
-          if (Test-Path export_presets.cfg) {
-            New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-            $lines = @(Get-Content export_presets.cfg)
-            Write-Host "Read $($lines.Count) lines from export_presets.cfg"
-            $name = ''; $platform = ''; $exportPath = ''
-            foreach ($raw in $lines) {
-              $line = $raw.Trim()
-              if ($line -match '^\[preset\.') {
-                if ($name -ne '' -and $platform -eq 'Windows') {
-                  $ps = ($name.ToLower() -replace '[^a-z0-9]','_')
-                  Write-Host "Preset: $name | Platform: $platform | ExportPath: '$exportPath' | Snake: $ps"
-                  $zipped = $false
-                  if ($exportPath -ne '' -and (Test-Path $exportPath)) {
-                    $dir = Split-Path $exportPath -Parent
-                    if ($dir -ne '' -and (Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
-                      Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/${ps}.zip" -Force
-                      $zipped = $true
-                      Write-Host "  -> Zipped from export_path dir: $dir"
-                    }
-                  }
-                  if (-not $zipped) {
-                    $presetDir = "export/$ps"
-                    if (Test-Path $presetDir) {
-                      if (Get-ChildItem -Path $presetDir -File -ErrorAction SilentlyContinue | Select-Object -First 1) {
-                        Compress-Archive -Path "$presetDir/*" -DestinationPath "artifacts/${ps}.zip" -Force
-                        $zipped = $true
-                        Write-Host "  -> Zipped from $presetDir"
-                      }
-                    }
-                  }
-                  if (-not $zipped) { Write-Host "  -> No files found to zip" }
-                }
-                $name = ''; $platform = ''; $exportPath = ''
-              }
-              if ($line -match '^name="([^"]*)"') { $name = $Matches[1] }
-              if ($line -match '^platform="([^"]*)"') { $platform = $Matches[1] }
-              if ($line -match '^export_path="([^"]*)"') { $exportPath = $Matches[1] }
-            }
-            if ($name -ne '' -and $platform -eq 'Windows') {
-              $ps = ($name.ToLower() -replace '[^a-z0-9]','_')
-              Write-Host "Preset: $name | Platform: $platform | ExportPath: '$exportPath' | Snake: $ps"
-              $zipped = $false
-              if ($exportPath -ne '' -and (Test-Path $exportPath)) {
-                $dir = Split-Path $exportPath -Parent
-                if ($dir -ne '' -and (Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
-                  Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/${ps}.zip" -Force
-                  $zipped = $true
-                  Write-Host "  -> Zipped from export_path dir: $dir"
-                }
-              }
-              if (-not $zipped) {
-                $presetDir = "export/$ps"
-                if (Test-Path $presetDir) {
-                  if (Get-ChildItem -Path $presetDir -File -ErrorAction SilentlyContinue | Select-Object -First 1) {
-                    Compress-Archive -Path "$presetDir/*" -DestinationPath "artifacts/${ps}.zip" -Force
-                    $zipped = $true
-                    Write-Host "  -> Zipped from $presetDir"
-                  }
-                }
-              }
-              if (-not $zipped) { Write-Host "  -> No files found to zip" }
-            }
-            Write-Host "Artifacts directory contents:"
-            Get-ChildItem -Path artifacts -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
-          } else {
-            Write-Host "No export_presets.cfg found"
-          }
+        run: python .github/workflows/ci_package.py exported_on_windows.zip
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: exports-windows
-          path: artifacts/*.zip
-          if-no-files-found: ignore
+          name: exported_on_windows
+          path: exported_on_windows.zip
+          if-no-files-found: warn
+
   export-linux:
     needs: detect
     if: needs.detect.outputs.has_linux == 'true' || needs.detect.outputs.has_web == 'true' || needs.detect.outputs.has_android == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        if: env.CSHARP == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+          cache: true
+
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
+
       - name: Add Godot editor
-        run: gdio add 4.7.2 
+        run: gdio add ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
       - name: Bind editor
-        run: gdio bind 4.7.2 
+        run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
 
       - name: Download Linux export templates
-        run: gdio templates add 4.7.2 --linux
+        run: gdio templates add ${{ env.GODOT_VERSION }} --linux
       - name: Export Linux presets
         run: gdio build --linux
       - name: Download Web export templates
-        run: gdio templates add 4.7.2 --web
+        run: gdio templates add ${{ env.GODOT_VERSION }} --web
       - name: Export Web presets
         run: gdio build --web
       - name: Download Android export templates
-        run: gdio templates add 4.7.2 --android
+        run: gdio templates add ${{ env.GODOT_VERSION }} --android
       - name: Export Android presets
         run: gdio build --android
+
       - name: Package artifacts
-        shell: bash
-        run: |
-          if [ -f export_presets.cfg ]; then
-            mkdir -p artifacts
-            _platforms="Linux|Web|Android"
-            _name="" _platform="" _export_path=""
-            _flush() {
-              [ -z "$_name" ] && return
-              case "$_platform" in
-                Linux|Web|Android) ;;
-                *) return ;;
-              esac
-              _ps=$(echo "$_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
-              echo "Preset: $_name | Platform: $_platform | ExportPath: '$_export_path' | Snake: $_ps"
-              _zipped=false
-              if [ -n "$_export_path" ] && [ -f "$_export_path" ]; then
-                _dir=$(dirname "$_export_path")
-                zip -qr "artifacts/${_ps}.zip" "$_dir"
-                _zipped=true
-                echo "  -> Zipped from export_path dir: $_dir"
-              fi
-              if [ "$_zipped" = false ] && [ -d "export/$_ps" ]; then
-                _count=$(find "export/$_ps" -maxdepth 1 -type f | wc -l)
-                if [ "$_count" -gt 0 ]; then
-                  zip -qr "artifacts/${_ps}.zip" "export/$_ps"
-                  _zipped=true
-                  echo "  -> Zipped from export/$_ps"
-                fi
-              fi
-              if [ "$_zipped" = false ]; then
-                echo "  -> No files found to zip"
-              fi
-            }
-            while IFS= read -r line; do
-              if [[ "$line" =~ ^\[preset\. ]]; then
-                _flush
-                _name="" _platform="" _export_path=""
-              fi
-              [[ "$line" =~ ^name=\"([^\"]*)\" ]] && _name="${BASH_REMATCH[1]}"
-              [[ "$line" =~ ^platform=\"([^\"]*)\" ]] && _platform="${BASH_REMATCH[1]}"
-              [[ "$line" =~ ^export_path=\"([^\"]*)\" ]] && _export_path="${BASH_REMATCH[1]}"
-            done < export_presets.cfg
-            _flush
-            echo "Artifacts directory contents:"
-            find artifacts -type f 2>/dev/null || echo "  (empty)"
-          fi
+        run: python .github/workflows/ci_package.py exported_on_linux.zip
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: exports-linux
-          path: artifacts/*.zip
-          if-no-files-found: ignore
+          name: exported_on_linux
+          path: exported_on_linux.zip
+          if-no-files-found: warn
+
   export-macos:
     needs: detect
     if: needs.detect.outputs.has_macos == 'true' || needs.detect.outputs.has_ios == 'true' || needs.detect.outputs.has_visionos == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        if: env.CSHARP == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+          cache: true
+
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
+
       - name: Add Godot editor
-        run: gdio add 4.7.2 
+        run: gdio add ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
       - name: Bind editor
-        run: gdio bind 4.7.2 
+        run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
 
       - name: Download macOS export templates
-        run: gdio templates add 4.7.2 --macos
+        run: gdio templates add ${{ env.GODOT_VERSION }} --macos
       - name: Export macOS presets
         run: gdio build --macos
       - name: Download iOS export templates
-        run: gdio templates add 4.7.2 --ios
+        run: gdio templates add ${{ env.GODOT_VERSION }} --ios
       - name: Export iOS presets
         run: gdio build --ios
       - name: Download visionOS export templates
-        run: gdio templates add 4.7.2 --visionos
+        run: gdio templates add ${{ env.GODOT_VERSION }} --visionos
       - name: Export visionOS presets
         run: gdio build --visionos
+
       - name: Package artifacts
-        shell: bash
-        run: |
-          if [ -f export_presets.cfg ]; then
-            mkdir -p artifacts
-            _name="" _platform="" _export_path=""
-            _flush() {
-              [ -z "$_name" ] && return
-              case "$_platform" in
-                "Mac OSX"|iOS|visionOS) ;;
-                *) return ;;
-              esac
-              _ps=$(echo "$_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
-              echo "Preset: $_name | Platform: $_platform | ExportPath: '$_export_path' | Snake: $_ps"
-              _zipped=false
-              if [ -n "$_export_path" ] && [ -f "$_export_path" ]; then
-                _dir=$(dirname "$_export_path")
-                zip -qr "artifacts/${_ps}.zip" "$_dir"
-                _zipped=true
-                echo "  -> Zipped from export_path dir: $_dir"
-              fi
-              if [ "$_zipped" = false ] && [ -d "export/$_ps" ]; then
-                _count=$(find "export/$_ps" -maxdepth 1 -type f | wc -l)
-                if [ "$_count" -gt 0 ]; then
-                  zip -qr "artifacts/${_ps}.zip" "export/$_ps"
-                  _zipped=true
-                  echo "  -> Zipped from export/$_ps"
-                fi
-              fi
-              if [ "$_zipped" = false ]; then
-                echo "  -> No files found to zip"
-              fi
-            }
-            while IFS= read -r line; do
-              if [[ "$line" =~ ^\[preset\. ]]; then
-                _flush
-                _name="" _platform="" _export_path=""
-              fi
-              [[ "$line" =~ ^name=\"([^\"]*)\" ]] && _name="${BASH_REMATCH[1]}"
-              [[ "$line" =~ ^platform=\"([^\"]*)\" ]] && _platform="${BASH_REMATCH[1]}"
-              [[ "$line" =~ ^export_path=\"([^\"]*)\" ]] && _export_path="${BASH_REMATCH[1]}"
-            done < export_presets.cfg
-            _flush
-            echo "Artifacts directory contents:"
-            find artifacts -type f 2>/dev/null || echo "  (empty)"
-          fi
+        run: python .github/workflows/ci_package.py exported_on_macos.zip
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: exports-macos
-          path: artifacts/*.zip
-          if-no-files-found: ignore
+          name: exported_on_macos
+          path: exported_on_macos.zip
+          if-no-files-found: warn
