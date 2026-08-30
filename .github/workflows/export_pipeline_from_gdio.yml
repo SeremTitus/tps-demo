@@ -87,14 +87,14 @@ jobs:
             foreach ($raw in $lines) {
               $line = $raw.Trim()
               if ($line -match '^\[preset\.') {
-                if ($name -ne '') {
+                if ($name -ne '' -and $platform -eq 'Windows') {
                   $ps = ($name.ToLower() -replace '[^a-z0-9]','_')
                   Write-Host "Preset: $name | Platform: $platform | ExportPath: '$exportPath' | Snake: $ps"
                   $zipped = $false
                   if ($exportPath -ne '' -and (Test-Path $exportPath)) {
                     $dir = Split-Path $exportPath -Parent
                     if ($dir -ne '' -and (Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
-                      Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/windows_${ps}.zip" -Force
+                      Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/${ps}.zip" -Force
                       $zipped = $true
                       Write-Host "  -> Zipped from export_path dir: $dir"
                     }
@@ -103,7 +103,7 @@ jobs:
                     $presetDir = "export/$ps"
                     if (Test-Path $presetDir) {
                       if (Get-ChildItem -Path $presetDir -File -ErrorAction SilentlyContinue | Select-Object -First 1) {
-                        Compress-Archive -Path "$presetDir/*" -DestinationPath "artifacts/windows_${ps}.zip" -Force
+                        Compress-Archive -Path "$presetDir/*" -DestinationPath "artifacts/${ps}.zip" -Force
                         $zipped = $true
                         Write-Host "  -> Zipped from $presetDir"
                       }
@@ -117,14 +117,14 @@ jobs:
               if ($line -match '^platform="([^"]*)"') { $platform = $Matches[1] }
               if ($line -match '^export_path="([^"]*)"') { $exportPath = $Matches[1] }
             }
-            if ($name -ne '') {
+            if ($name -ne '' -and $platform -eq 'Windows') {
               $ps = ($name.ToLower() -replace '[^a-z0-9]','_')
               Write-Host "Preset: $name | Platform: $platform | ExportPath: '$exportPath' | Snake: $ps"
               $zipped = $false
               if ($exportPath -ne '' -and (Test-Path $exportPath)) {
                 $dir = Split-Path $exportPath -Parent
                 if ($dir -ne '' -and (Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
-                  Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/windows_${ps}.zip" -Force
+                  Compress-Archive -Path "$dir/*" -DestinationPath "artifacts/${ps}.zip" -Force
                   $zipped = $true
                   Write-Host "  -> Zipped from export_path dir: $dir"
                 }
@@ -133,7 +133,7 @@ jobs:
                 $presetDir = "export/$ps"
                 if (Test-Path $presetDir) {
                   if (Get-ChildItem -Path $presetDir -File -ErrorAction SilentlyContinue | Select-Object -First 1) {
-                    Compress-Archive -Path "$presetDir/*" -DestinationPath "artifacts/windows_${ps}.zip" -Force
+                    Compress-Archive -Path "$presetDir/*" -DestinationPath "artifacts/${ps}.zip" -Force
                     $zipped = $true
                     Write-Host "  -> Zipped from $presetDir"
                   }
@@ -146,12 +146,6 @@ jobs:
           } else {
             Write-Host "No export_presets.cfg found"
           }
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: exports-windows
-          path: artifacts/*.zip
-          if-no-files-found: ignore
   export-linux:
     needs: detect
     if: needs.detect.outputs.has_linux == 'true' || needs.detect.outputs.has_web == 'true' || needs.detect.outputs.has_android == 'true'
@@ -199,14 +193,14 @@ jobs:
               _zipped=false
               if [ -n "$_export_path" ] && [ -f "$_export_path" ]; then
                 _dir=$(dirname "$_export_path")
-                zip -qr "artifacts/${_platform}_${_ps}.zip" "$_dir"
+                zip -qr "artifacts/${_ps}.zip" "$_dir"
                 _zipped=true
                 echo "  -> Zipped from export_path dir: $_dir"
               fi
               if [ "$_zipped" = false ] && [ -d "export/$_ps" ]; then
                 _count=$(find "export/$_ps" -maxdepth 1 -type f | wc -l)
                 if [ "$_count" -gt 0 ]; then
-                  zip -qr "artifacts/${_platform}_${_ps}.zip" "export/$_ps"
+                  zip -qr "artifacts/${_ps}.zip" "export/$_ps"
                   _zipped=true
                   echo "  -> Zipped from export/$_ps"
                 fi
@@ -228,13 +222,42 @@ jobs:
             echo "Artifacts directory contents:"
             find artifacts -type f 2>/dev/null || echo "  (empty)"
           fi
-      - name: Upload artifacts
+      - name: Upload Linux
         uses: actions/upload-artifact@v7
         with:
-          name: exports-linux
-          path: artifacts/*.zip
+          name: 
+          path: artifacts/.zip
           if-no-files-found: ignore
-
+      - name: Upload Linux 2
+        uses: actions/upload-artifact@v7
+        with:
+          name: 
+          path: artifacts/.zip
+          if-no-files-found: ignore
+      - name: Upload Web
+        uses: actions/upload-artifact@v7
+        with:
+          name: 
+          path: artifacts/.zip
+          if-no-files-found: ignore
+      - name: Upload Web 2
+        uses: actions/upload-artifact@v7
+        with:
+          name: 
+          path: artifacts/.zip
+          if-no-files-found: ignore
+      - name: Upload Android
+        uses: actions/upload-artifact@v7
+        with:
+          name: 
+          path: artifacts/.zip
+          if-no-files-found: ignore
+      - name: Upload Android (copy)
+        uses: actions/upload-artifact@v7
+        with:
+          name: 
+          path: artifacts/.zip
+          if-no-files-found: ignore
   export-macos:
     needs: detect
     if: needs.detect.outputs.has_macos == 'true' || needs.detect.outputs.has_ios == 'true' || needs.detect.outputs.has_visionos == 'true'
@@ -281,14 +304,14 @@ jobs:
               _zipped=false
               if [ -n "$_export_path" ] && [ -f "$_export_path" ]; then
                 _dir=$(dirname "$_export_path")
-                zip -qr "artifacts/${_platform}_${_ps}.zip" "$_dir"
+                zip -qr "artifacts/${_ps}.zip" "$_dir"
                 _zipped=true
                 echo "  -> Zipped from export_path dir: $_dir"
               fi
               if [ "$_zipped" = false ] && [ -d "export/$_ps" ]; then
                 _count=$(find "export/$_ps" -maxdepth 1 -type f | wc -l)
                 if [ "$_count" -gt 0 ]; then
-                  zip -qr "artifacts/${_platform}_${_ps}.zip" "export/$_ps"
+                  zip -qr "artifacts/${_ps}.zip" "export/$_ps"
                   _zipped=true
                   echo "  -> Zipped from export/$_ps"
                 fi
@@ -310,34 +333,15 @@ jobs:
             echo "Artifacts directory contents:"
             find artifacts -type f 2>/dev/null || echo "  (empty)"
           fi
-      - name: Upload artifacts
+      - name: Upload iOS
         uses: actions/upload-artifact@v7
         with:
-          name: exports-macos
-          path: artifacts/*.zip
+          name: 
+          path: artifacts/.zip
           if-no-files-found: ignore
-
-  package:
-    needs: [export-windows, export-linux, export-macos]
-    if: always() && (needs.export-windows.result == 'success' || needs.export-linux.result == 'success' || needs.export-macos.result == 'success')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all exports
-        uses: actions/download-artifact@v8
-        with:
-          pattern: exports-*
-          path: downloads/
-
-      - name: Create aggregated zip
-        run: |
-          mkdir -p flattened
-          find downloads/ -name '*.zip' -exec unzip -qo {} -d flattened \;
-          cd flattened
-          zip -qr ../all_exports.zip .
-
-      - name: Upload aggregated artifact
+      - name: Upload iOS 2
         uses: actions/upload-artifact@v7
         with:
-          name: all-exports
-          path: all_exports.zip
+          name: 
+          path: artifacts/.zip
           if-no-files-found: ignore
