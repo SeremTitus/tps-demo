@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  GODOT_VERSION: "4.7.2-stable"
+  GODOT_VERSION: "4.7.2.stable"
   CSHARP: "false"
 
 jobs:
@@ -135,14 +135,19 @@ jobs:
             gdio args --import --headless
           fi
       - name: Export Linux presets
+        if: needs.detect.outputs.has_linux == 'true'
         run: gdio build --linux
       - name: Download Web export templates
+        if: needs.detect.outputs.has_web == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --web
       - name: Export Web presets
+        if: needs.detect.outputs.has_web == 'true'
         run: gdio build --web
       - name: Download Android export templates
+        if: needs.detect.outputs.has_android == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --android
       - name: Export Android presets
+        if: needs.detect.outputs.has_android == 'true'
         run: gdio build --android
 
       - name: Package artifacts
@@ -190,14 +195,19 @@ jobs:
             gdio args --import --headless
           fi
       - name: Export macOS presets
+        if: needs.detect.outputs.has_macos == 'true'
         run: gdio build --macos
       - name: Download iOS export templates
+        if: needs.detect.outputs.has_ios == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --ios
       - name: Export iOS presets
+        if: needs.detect.outputs.has_ios == 'true'
         run: gdio build --ios
       - name: Download visionOS export templates
+        if: needs.detect.outputs.has_visionos == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --visionos
       - name: Export visionOS presets
+        if: needs.detect.outputs.has_visionos == 'true'
         run: gdio build --visionos
 
       - name: Package artifacts
