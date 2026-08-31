@@ -24,10 +24,6 @@ config/icon="res://icon.png"
 
 buses/default_bus_layout="uid://vtdn63d3ksc2"
 
-[autoload]
-
-Settings="*res://menu/settings.gd"
-
 [display]
 
 window/size/viewport_width=1920

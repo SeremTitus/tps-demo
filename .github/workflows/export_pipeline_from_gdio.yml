@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  GODOT_VERSION: "4.7.2"
+  GODOT_VERSION: "4.7.2-stable"
   CSHARP: "false"
 
 jobs:
@@ -69,11 +69,7 @@ jobs:
 
       - name: Install gdio
         shell: pwsh
-        run: |
-          $script = "$env:TEMP\gdio_install.ps1"
-          curl.exe -fsSL -o $script https://gdio.seremtitus.co.ke/install.ps1
-          powershell -ExecutionPolicy Bypass -File $script
-          Remove-Item $script -ErrorAction SilentlyContinue
+        run: curl.exe -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.ps1 | powershell -Command -
       - name: Add gdio to PATH
         shell: pwsh
         run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -85,6 +81,12 @@ jobs:
 
       - name: Download Windows export templates
         run: gdio templates add ${{ env.GODOT_VERSION }} --windows
+      - name: Import project if needed
+        shell: bash
+        run: |
+          if [ ! -d .godot ]; then
+            gdio args --import --headless
+          fi
       - name: Export Windows presets
         run: gdio build --windows
 
@@ -114,7 +116,7 @@ jobs:
 
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
+        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
@@ -126,6 +128,12 @@ jobs:
 
       - name: Download Linux export templates
         run: gdio templates add ${{ env.GODOT_VERSION }} --linux
+      - name: Import project if needed
+        shell: bash
+        run: |
+          if [ ! -d .godot ]; then
+            gdio args --import --headless
+          fi
       - name: Export Linux presets
         run: gdio build --linux
       - name: Download Web export templates
@@ -163,7 +171,7 @@ jobs:
 
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
+        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
@@ -175,6 +183,12 @@ jobs:
 
       - name: Download macOS export templates
         run: gdio templates add ${{ env.GODOT_VERSION }} --macos
+      - name: Import project if needed
+        shell: bash
+        run: |
+          if [ ! -d .godot ]; then
+            gdio args --import --headless
+          fi
       - name: Export macOS presets
         run: gdio build --macos
       - name: Download iOS export templates

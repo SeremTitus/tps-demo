@@ -238,7 +238,7 @@ jobs:
 
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
+        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
@@ -246,6 +246,12 @@ jobs:
       - name: Bind compiled editor
         run: gdio add ./package_editor/* && gdio bind
 
+      - name: Import project if needed
+        shell: bash
+        run: |
+          if [ ! -d .godot ]; then
+            gdio args --import --headless
+          fi
       - name: Export project
         run: gdio build
 
@@ -411,11 +417,7 @@ jobs:
 
       - name: Install gdio
         shell: pwsh
-        run: |
-          $script = "$env:TEMP\gdio_install.ps1"
-          curl.exe -fsSL -o $script https://gdio.seremtitus.co.ke/install.ps1
-          powershell -ExecutionPolicy Bypass -File $script
-          Remove-Item $script -ErrorAction SilentlyContinue
+        run: curl.exe -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.ps1 | powershell -Command -
       - name: Add gdio to PATH
         shell: pwsh
         run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -423,6 +425,12 @@ jobs:
       - name: Bind compiled editor
         run: gdio add ./package_editor/* && gdio bind
 
+      - name: Import project if needed
+        shell: bash
+        run: |
+          if [ ! -d .godot ]; then
+            gdio args --import --headless
+          fi
       - name: Export project
         run: gdio build
 
@@ -567,7 +575,7 @@ jobs:
 
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://gdio.seremtitus.co.ke/install.sh | bash || true
+        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
@@ -575,6 +583,12 @@ jobs:
       - name: Bind compiled editor
         run: gdio add ./package_editor/* && gdio bind
 
+      - name: Import project if needed
+        shell: bash
+        run: |
+          if [ ! -d .godot ]; then
+            gdio args --import --headless
+          fi
       - name: Export project
         run: gdio build
 
