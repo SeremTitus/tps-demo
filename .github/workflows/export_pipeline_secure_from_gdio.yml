@@ -164,6 +164,18 @@ jobs:
           cp godot/core/io/file_access_encrypted.h /tmp/godot_secure_baseline/
           cp godot/core/io/file_access_encrypted.cpp /tmp/godot_secure_baseline/
 
+      - name: Install Godot build dependencies
+        if: >-
+          steps.editor-cache.outputs.cache-hit != 'true' ||
+          steps.template-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          cd godot
+          for script in misc/scripts/install_*.py; do
+            echo "[INSTALL] $script"
+            python "$script" || true
+          done
+
       - name: Apply Godot Secure
         if: >-
           steps.editor-cache.outputs.cache-hit != 'true' ||
@@ -452,6 +464,20 @@ jobs:
           cp godot/core/io/file_access_pack.h /tmp/godot_secure_baseline/
           cp godot/core/io/file_access_encrypted.h /tmp/godot_secure_baseline/
           cp godot/core/io/file_access_encrypted.cpp /tmp/godot_secure_baseline/
+
+      - name: Install Godot build dependencies
+        if: >-
+          steps.editor-cache.outputs.cache-hit != 'true' ||
+          steps.linux-cache.outputs.cache-hit != 'true' ||
+          steps.web-cache.outputs.cache-hit != 'true' ||
+          steps.android-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          cd godot
+          for script in misc/scripts/install_*.py; do
+            echo "[INSTALL] $script"
+            python3 "$script" || true
+          done
 
       - name: Apply Godot Secure
         if: >-
@@ -918,6 +944,20 @@ jobs:
           cp godot/core/io/file_access_pack.h /tmp/godot_secure_baseline/
           cp godot/core/io/file_access_encrypted.h /tmp/godot_secure_baseline/
           cp godot/core/io/file_access_encrypted.cpp /tmp/godot_secure_baseline/
+
+      - name: Install Godot build dependencies
+        if: >-
+          steps.editor-cache.outputs.cache-hit != 'true' ||
+          steps.macos-template-cache.outputs.cache-hit != 'true' ||
+          steps.ios-template-cache.outputs.cache-hit != 'true' ||
+          steps.visionos-template-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          cd godot
+          for script in misc/scripts/install_*.py; do
+            echo "[INSTALL] $script"
+            python3 "$script" || true
+          done
 
       - name: Apply Godot Secure
         if: >-
