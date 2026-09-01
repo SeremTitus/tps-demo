@@ -122,7 +122,7 @@ jobs:
 
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
+        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash
 
       - name: Add gdio to PATH
         shell: bash
@@ -192,7 +192,7 @@ jobs:
 
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
+        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash
 
       - name: Add gdio to PATH
         shell: bash

@@ -170,13 +170,19 @@ jobs:
           set -euo pipefail
           export SCRIPT_AES256_ENCRYPTION_KEY="$SCRIPT_AES256_ENCRYPTION_KEY"
           set +e
-          printf "y\nn\ny\n$SCRIPT_AES256_ENCRYPTION_KEY\n\n" | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
+          printf "y\nn\ny\n$SCRIPT_AES256_ENCRYPTION_KEY\n\n" | python "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
           set -e
           if [ ! -s "godot/core/crypto/security_token.h" ]; then
             echo "ERROR: security_token.h was not generated."
+            tail -200 /tmp/godot_secure_apply.log | sed -E 's/[0-9A-Fa-f]{64}/[REDACTED]/g'
             exit 1
           fi
-          echo "[OK] Godot Secure applied."
+          if cmp -s /tmp/godot_secure_baseline/file_access_pack.h godot/core/io/file_access_pack.h; then
+            echo "ERROR: file_access_pack.h was not modified."
+            exit 1
+          fi
+          rm -f /tmp/godot_secure_apply.log
+          echo "[OK] Godot Secure applied successfully."
 
       - name: Restore editor from cache
         if: steps.editor-cache.outputs.cache-hit == 'true'
@@ -540,7 +546,7 @@ jobs:
 
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
+        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash
 
       - name: Add gdio to PATH
         shell: bash
@@ -871,9 +877,15 @@ jobs:
           set -e
           if [ ! -s "godot/core/crypto/security_token.h" ]; then
             echo "ERROR: security_token.h was not generated."
+            tail -200 /tmp/godot_secure_apply.log | sed -E 's/[0-9A-Fa-f]{64}/[REDACTED]/g'
             exit 1
           fi
-          echo "[OK] Godot Secure applied."
+          if cmp -s /tmp/godot_secure_baseline/file_access_pack.h godot/core/io/file_access_pack.h; then
+            echo "ERROR: file_access_pack.h was not modified."
+            exit 1
+          fi
+          rm -f /tmp/godot_secure_apply.log
+          echo "[OK] Godot Secure applied successfully."
 
       - name: Restore editor from cache
         if: steps.editor-cache.outputs.cache-hit == 'true'
@@ -912,7 +924,7 @@ jobs:
 
       - name: Install gdio
         shell: bash
-        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
+        run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash
 
       - name: Add gdio to PATH
         shell: bash
