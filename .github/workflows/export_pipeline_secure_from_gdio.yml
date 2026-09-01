@@ -198,6 +198,50 @@ jobs:
             cp -a bin/GodotSharp ~/.cache/gdio/windows-editor/GodotSharp
           fi
 
+      - name: Detect binaries
+        id: bins
+        shell: bash
+        run: |
+          WINDOWS_EDITOR=${{ env.CSHARP == 'true' && 'godot.windows.editor.x86_64.mono.exe' || 'godot.windows.editor.x86_64.exe' }}
+          echo "windows_editor=$(find godot/bin -maxdepth 1 -name "$WINDOWS_EDITOR" -type f | head -n 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Package editor
+        shell: bash
+        run: |
+          mkdir -p package_editor
+          cp "${{ steps.bins.outputs.windows_editor }}" package_editor/
+
+      - name: Copy GodotSharp
+        if: env.CSHARP == 'true'
+        shell: bash
+        run: |
+          if [ -d "godot/bin/GodotSharp" ]; then
+            cp -a godot/bin/GodotSharp package_editor/GodotSharp
+          fi
+
+      - name: Install gdio
+        shell: pwsh
+        run: curl.exe -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.ps1 | powershell -Command -
+      - name: Add gdio to PATH
+        shell: pwsh
+        run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Bind compiled editor
+        shell: bash
+        run: |
+          EDITOR_BIN=$(find package_editor -maxdepth 1 -type f -name "*.exe" | head -n 1)
+          EDITOR_VERSION=$("$EDITOR_BIN" --version | xargs)
+          gdio add "$EDITOR_BIN"
+          gdio bind "$EDITOR_VERSION"
+
+      - name: Import project if needed
+        shell: bash
+        run: |
+          if [ ! -d .godot ]; then
+            gdio args --import --headless
+          fi
+
+      # Windows: build templates, install, export
       - name: Build Windows templates (all arch, regular + console)
         if: steps.template-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -242,55 +286,15 @@ jobs:
           echo "[OK] Templates installed to $TEMPLATE_DIR"
           ls -la "$TEMPLATE_DIR"
 
-      - name: Detect binaries
-        id: bins
-        shell: bash
-        run: |
-          WINDOWS_EDITOR=${{ env.CSHARP == 'true' && 'godot.windows.editor.x86_64.mono.exe' || 'godot.windows.editor.x86_64.exe' }}
-          echo "windows_editor=$(find godot/bin -maxdepth 1 -name "$WINDOWS_EDITOR" -type f | head -n 1)" >> "$GITHUB_OUTPUT"
-
-      - name: Package editor
-        shell: bash
-        run: |
-          mkdir -p package_editor
-          cp "${{ steps.bins.outputs.windows_editor }}" package_editor/
-
-      - name: Copy GodotSharp
-        if: env.CSHARP == 'true'
-        shell: bash
-        run: |
-          if [ -d "godot/bin/GodotSharp" ]; then
-            cp -a godot/bin/GodotSharp package_editor/GodotSharp
-          fi
-
-      - name: Install gdio
-        shell: pwsh
-        run: curl.exe -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.ps1 | powershell -Command -
-      - name: Add gdio to PATH
-        shell: pwsh
-        run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Bind compiled editor
-        shell: bash
-        run: |
-          EDITOR_BIN=$(find package_editor -maxdepth 1 -type f -name "*.exe" | head -n 1)
-          EDITOR_VERSION=$("$EDITOR_BIN" --version | xargs)
-          gdio add "$EDITOR_BIN"
-          gdio bind "$EDITOR_VERSION"
-
-      - name: Import project if needed
-        shell: bash
-        run: |
-          if [ ! -d .godot ]; then
-            gdio args --import --headless
-          fi
       - name: Export Windows presets
         run: gdio build --windows
 
       - name: Package artifacts
+        if: always()
         run: python .github/workflows/ci_package.py exported_on_windows
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: exported_on_windows
@@ -386,40 +390,6 @@ jobs:
           sudo update-alternatives \
             --install /usr/bin/x86_64-w64-mingw32-gcc x86_64-w64-mingw32-gcc \
             /usr/bin/x86_64-w64-mingw32-gcc-posix 100
-
-      - name: Setup Emscripten SDK
-        if: steps.web-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          set -e
-          if [ ! -d "$HOME/emsdk" ]; then
-            git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
-          fi
-          cd "$HOME/emsdk"
-          ./emsdk install latest
-          ./emsdk activate latest
-          echo "$HOME/emsdk" >> "$GITHUB_PATH"
-          echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
-
-      - name: Setup Android SDK/NDK
-        if: steps.android-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          set -e
-          export ANDROID_HOME="$HOME/android-sdk"
-          if [ ! -d "$ANDROID_HOME" ]; then
-            mkdir -p "$ANDROID_HOME"
-            curl -fsSL -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-            unzip -q cmdline-tools.zip -d "$ANDROID_HOME/cmdline-tools-tmp"
-            mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
-            mv "$ANDROID_HOME/cmdline-tools-tmp/cmdline-tools/"* "$ANDROID_HOME/cmdline-tools/latest/"
-            rm -rf "$ANDROID_HOME/cmdline-tools-tmp" cmdline-tools.zip
-          fi
-          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973" >/dev/null
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
 
       - name: Clone Godot
         if: >-
@@ -540,108 +510,6 @@ jobs:
             cp -a bin/GodotSharp ~/.cache/gdio/linux-editor/GodotSharp
           fi
 
-      - name: Build Linux release templates (all arch)
-        if: steps.linux-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          cd godot
-          for arch in x86_32 x86_64 arm32 arm64; do
-            echo "[BUILD] Linux template_release $arch"
-            scons platform=linuxbsd target=template_release arch=$arch ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
-          done
-
-      - name: Build Web release templates (all variants)
-        if: steps.web-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_web == 'true'
-        shell: bash
-        run: |
-          source "$HOME/emsdk/emsdk_env.sh" 2>/dev/null
-          cd godot
-          COMMON="target=template_release ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no"
-          echo "[BUILD] Web template_release (standard)"
-          scons platform=web $COMMON
-          echo "[BUILD] Web template_release (dlink)"
-          scons platform=web $COMMON dlink_enabled=yes
-          echo "[BUILD] Web template_release (nothreads)"
-          scons platform=web $COMMON threads=no
-          echo "[BUILD] Web template_release (dlink+nothreads)"
-          scons platform=web $COMMON dlink_enabled=yes threads=no
-
-      - name: Build Android release template
-        if: steps.android-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_android == 'true'
-        shell: bash
-        run: |
-          cd godot
-          scons platform=android target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
-
-      - name: Install Linux templates
-        shell: bash
-        run: |
-          set -e
-          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/$GODOT_TAG"
-          CACHE_DIR="$HOME/.cache/gdio/linux-templates"
-          mkdir -p "$TEMPLATE_DIR"
-          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
-            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
-            echo "[OK] Restored Linux templates from cache"
-          else
-            mkdir -p "$CACHE_DIR"
-            cd godot/bin
-            SUFFIX=${{ env.CSHARP == 'true' && '.mono' || '' }}
-            for arch in x86_32 x86_64 arm32 arm64; do
-              SRC="godot.linuxbsd.template_release.${arch}${SUFFIX}"
-              if [ -f "$SRC" ]; then
-                cp "$SRC" "$TEMPLATE_DIR/linux_release.${arch}"
-                cp "$SRC" "$CACHE_DIR/linux_release.${arch}"
-                echo "[OK] linux_release.${arch}"
-              fi
-            done
-          fi
-
-      - name: Install Web templates
-        if: needs.detect.outputs.has_web == 'true'
-        shell: bash
-        run: |
-          set -e
-          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/$GODOT_TAG"
-          CACHE_DIR="$HOME/.cache/gdio/web-templates"
-          mkdir -p "$TEMPLATE_DIR"
-          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
-            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
-            echo "[OK] Restored Web templates from cache"
-          else
-            mkdir -p "$CACHE_DIR"
-            cd godot/bin
-            zip -j "$TEMPLATE_DIR/web_release.zip" godot.web.template_release.wasm32*.js godot.web.template_release.wasm32*.wasm && echo "[OK] web_release.zip"
-            zip -j "$CACHE_DIR/web_release.zip" godot.web.template_release.wasm32*.js godot.web.template_release.wasm32*.wasm
-            zip -j "$TEMPLATE_DIR/web_dlink_release.zip" godot.web.template_release.wasm32.dlink.js godot.web.template_release.wasm32.dlink.wasm godot.side.web.template_release.wasm32.dlink.wasm && echo "[OK] web_dlink_release.zip"
-            zip -j "$CACHE_DIR/web_dlink_release.zip" godot.web.template_release.wasm32.dlink.js godot.web.template_release.wasm32.dlink.wasm godot.side.web.template_release.wasm32.dlink.wasm
-            zip -j "$TEMPLATE_DIR/web_nothreads_release.zip" godot.web.template_release.wasm32.nothreads.js godot.web.template_release.wasm32.nothreads.wasm && echo "[OK] web_nothreads_release.zip"
-            zip -j "$CACHE_DIR/web_nothreads_release.zip" godot.web.template_release.wasm32.nothreads.js godot.web.template_release.wasm32.nothreads.wasm
-            zip -j "$TEMPLATE_DIR/web_dlink_nothreads_release.zip" godot.web.template_release.wasm32.nothreads.dlink.js godot.web.template_release.wasm32.nothreads.dlink.wasm godot.side.web.template_release.wasm32.nothreads.dlink.wasm && echo "[OK] web_dlink_nothreads_release.zip"
-            zip -j "$CACHE_DIR/web_dlink_nothreads_release.zip" godot.web.template_release.wasm32.nothreads.dlink.js godot.web.template_release.wasm32.nothreads.dlink.wasm godot.side.web.template_release.wasm32.nothreads.dlink.wasm
-          fi
-
-      - name: Install Android templates
-        if: needs.detect.outputs.has_android == 'true'
-        shell: bash
-        run: |
-          set -e
-          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/$GODOT_TAG"
-          CACHE_DIR="$HOME/.cache/gdio/android-templates"
-          mkdir -p "$TEMPLATE_DIR"
-          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
-            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
-            echo "[OK] Restored Android templates from cache"
-          else
-            mkdir -p "$CACHE_DIR"
-            cd godot/bin
-            if [ -f godot.android.template_release.arm64 ]; then
-              cp godot.android.template_release.arm64 "$TEMPLATE_DIR/android_release.apk"
-              cp godot.android.template_release.arm64 "$CACHE_DIR/android_release.apk"
-              echo "[OK] android_release.apk"
-            fi
-          fi
-
       - name: Detect binaries
         id: bins
         shell: bash
@@ -692,20 +560,164 @@ jobs:
           if [ ! -d .godot ]; then
             gdio args --import --headless
           fi
+
+      # Linux: build templates, install, export
+      - name: Build Linux release templates (all arch)
+        if: steps.linux-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_linux == 'true'
+        shell: bash
+        run: |
+          cd godot
+          for arch in x86_32 x86_64 arm32 arm64; do
+            echo "[BUILD] Linux template_release $arch"
+            scons platform=linuxbsd target=template_release arch=$arch ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+          done
+
+      - name: Install Linux templates
+        shell: bash
+        run: |
+          set -e
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/$GODOT_TAG"
+          CACHE_DIR="$HOME/.cache/gdio/linux-templates"
+          mkdir -p "$TEMPLATE_DIR"
+          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
+            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
+            echo "[OK] Restored Linux templates from cache"
+          else
+            mkdir -p "$CACHE_DIR"
+            cd godot/bin
+            SUFFIX=${{ env.CSHARP == 'true' && '.mono' || '' }}
+            for arch in x86_32 x86_64 arm32 arm64; do
+              SRC="godot.linuxbsd.template_release.${arch}${SUFFIX}"
+              if [ -f "$SRC" ]; then
+                cp "$SRC" "$TEMPLATE_DIR/linux_release.${arch}"
+                cp "$SRC" "$CACHE_DIR/linux_release.${arch}"
+                echo "[OK] linux_release.${arch}"
+              fi
+            done
+          fi
+
       - name: Export Linux presets
         if: needs.detect.outputs.has_linux == 'true'
         run: gdio build --linux
+
+      # Web: setup dependencies, build templates, install, export
+      - name: Setup Emscripten SDK
+        if: steps.web-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_web == 'true'
+        shell: bash
+        run: |
+          set -e
+          if [ ! -d "$HOME/emsdk" ]; then
+            git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          fi
+          cd "$HOME/emsdk"
+          ./emsdk install latest
+          ./emsdk activate latest
+          echo "$HOME/emsdk" >> "$GITHUB_PATH"
+          echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+
+      - name: Build Web release templates (all variants)
+        if: steps.web-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_web == 'true'
+        shell: bash
+        run: |
+          source "$HOME/emsdk/emsdk_env.sh" 2>/dev/null
+          cd godot
+          COMMON="target=template_release ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no"
+          echo "[BUILD] Web template_release (standard)"
+          scons platform=web $COMMON
+          echo "[BUILD] Web template_release (dlink)"
+          scons platform=web $COMMON dlink_enabled=yes
+          echo "[BUILD] Web template_release (nothreads)"
+          scons platform=web $COMMON threads=no
+          echo "[BUILD] Web template_release (dlink+nothreads)"
+          scons platform=web $COMMON dlink_enabled=yes threads=no
+
+      - name: Install Web templates
+        if: needs.detect.outputs.has_web == 'true'
+        shell: bash
+        run: |
+          set -e
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/$GODOT_TAG"
+          CACHE_DIR="$HOME/.cache/gdio/web-templates"
+          mkdir -p "$TEMPLATE_DIR"
+          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
+            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
+            echo "[OK] Restored Web templates from cache"
+          else
+            mkdir -p "$CACHE_DIR"
+            cd godot/bin
+            zip -j "$TEMPLATE_DIR/web_release.zip" godot.web.template_release.wasm32*.js godot.web.template_release.wasm32*.wasm && echo "[OK] web_release.zip"
+            zip -j "$CACHE_DIR/web_release.zip" godot.web.template_release.wasm32*.js godot.web.template_release.wasm32*.wasm
+            zip -j "$TEMPLATE_DIR/web_dlink_release.zip" godot.web.template_release.wasm32.dlink.js godot.web.template_release.wasm32.dlink.wasm godot.side.web.template_release.wasm32.dlink.wasm && echo "[OK] web_dlink_release.zip"
+            zip -j "$CACHE_DIR/web_dlink_release.zip" godot.web.template_release.wasm32.dlink.js godot.web.template_release.wasm32.dlink.wasm godot.side.web.template_release.wasm32.dlink.wasm
+            zip -j "$TEMPLATE_DIR/web_nothreads_release.zip" godot.web.template_release.wasm32.nothreads.js godot.web.template_release.wasm32.nothreads.wasm && echo "[OK] web_nothreads_release.zip"
+            zip -j "$CACHE_DIR/web_nothreads_release.zip" godot.web.template_release.wasm32.nothreads.js godot.web.template_release.wasm32.nothreads.wasm
+            zip -j "$TEMPLATE_DIR/web_dlink_nothreads_release.zip" godot.web.template_release.wasm32.nothreads.dlink.js godot.web.template_release.wasm32.nothreads.dlink.wasm godot.side.web.template_release.wasm32.nothreads.dlink.wasm && echo "[OK] web_dlink_nothreads_release.zip"
+            zip -j "$CACHE_DIR/web_dlink_nothreads_release.zip" godot.web.template_release.wasm32.nothreads.dlink.js godot.web.template_release.wasm32.nothreads.dlink.wasm godot.side.web.template_release.wasm32.nothreads.dlink.wasm
+          fi
+
       - name: Export Web presets
         if: needs.detect.outputs.has_web == 'true'
         run: gdio build --web
+
+      # Android: setup dependencies, build templates, install, export
+      - name: Setup Android SDK/NDK
+        if: steps.android-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_android == 'true'
+        shell: bash
+        run: |
+          set -e
+          export ANDROID_HOME="$HOME/android-sdk"
+          if [ ! -d "$ANDROID_HOME" ]; then
+            mkdir -p "$ANDROID_HOME"
+            curl -fsSL -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q cmdline-tools.zip -d "$ANDROID_HOME/cmdline-tools-tmp"
+            mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+            mv "$ANDROID_HOME/cmdline-tools-tmp/cmdline-tools/"* "$ANDROID_HOME/cmdline-tools/latest/"
+            rm -rf "$ANDROID_HOME/cmdline-tools-tmp" cmdline-tools.zip
+          fi
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973" >/dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - name: Build Android release template
+        if: steps.android-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_android == 'true'
+        shell: bash
+        run: |
+          cd godot
+          scons platform=android target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+
+      - name: Install Android templates
+        if: needs.detect.outputs.has_android == 'true'
+        shell: bash
+        run: |
+          set -e
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/$GODOT_TAG"
+          CACHE_DIR="$HOME/.cache/gdio/android-templates"
+          mkdir -p "$TEMPLATE_DIR"
+          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
+            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
+            echo "[OK] Restored Android templates from cache"
+          else
+            mkdir -p "$CACHE_DIR"
+            cd godot/bin
+            if [ -f godot.android.template_release.arm64 ]; then
+              cp godot.android.template_release.arm64 "$TEMPLATE_DIR/android_release.apk"
+              cp godot.android.template_release.arm64 "$CACHE_DIR/android_release.apk"
+              echo "[OK] android_release.apk"
+            fi
+          fi
+
       - name: Export Android presets
         if: needs.detect.outputs.has_android == 'true'
         run: gdio build --android
 
       - name: Package artifacts
+        if: always()
         run: python .github/workflows/ci_package.py exported_on_linux
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: exported_on_linux
@@ -879,101 +891,6 @@ jobs:
             cp -a bin/GodotSharp ~/.cache/gdio/macos-editor/GodotSharp
           fi
 
-      - name: Build macOS release templates (all arch)
-        if: steps.macos-template-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          cd godot
-          for arch in x86_64 arm64; do
-            echo "[BUILD] macOS template_release $arch"
-            scons platform=macos target=template_release arch=$arch ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
-          done
-
-      - name: Build iOS release template
-        if: steps.ios-template-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_ios == 'true'
-        shell: bash
-        run: |
-          cd godot
-          echo "[BUILD] iOS template_release"
-          scons platform=ios target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
-
-      - name: Build visionOS release template
-        if: steps.visionos-template-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_visionos == 'true'
-        shell: bash
-        run: |
-          cd godot
-          echo "[BUILD] visionOS template_release"
-          scons platform=visionos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
-
-      - name: Install macOS templates
-        shell: bash
-        run: |
-          set -e
-          TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/$GODOT_TAG"
-          CACHE_DIR="$HOME/.cache/gdio/macos-templates"
-          mkdir -p "$TEMPLATE_DIR"
-          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
-            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
-            echo "[OK] Restored macOS templates from cache"
-          else
-            mkdir -p "$CACHE_DIR"
-            cd godot/bin
-            MACOS_FILES=""
-            for arch in x86_64 arm64; do
-              if [ -f "godot.macos.template_release.${arch}" ]; then
-                MACOS_FILES="$MACOS_FILES godot.macos.template_release.${arch}"
-                echo "[OK] Found macOS template $arch"
-              fi
-            done
-            if [ -n "$MACOS_FILES" ]; then
-              zip -j "$TEMPLATE_DIR/macos.zip" $MACOS_FILES
-              zip -j "$CACHE_DIR/macos.zip" $MACOS_FILES
-              echo "[OK] Installed macos.zip"
-            fi
-          fi
-
-      - name: Install iOS templates
-        if: needs.detect.outputs.has_ios == 'true'
-        shell: bash
-        run: |
-          set -e
-          TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/$GODOT_TAG"
-          CACHE_DIR="$HOME/.cache/gdio/ios-templates"
-          mkdir -p "$TEMPLATE_DIR"
-          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
-            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
-            echo "[OK] Restored iOS templates from cache"
-          else
-            mkdir -p "$CACHE_DIR"
-            cd godot/bin
-            if [ -f godot.ios.template_release.arm64 ]; then
-              zip -j "$TEMPLATE_DIR/ios.zip" godot.ios.template_release.arm64
-              zip -j "$CACHE_DIR/ios.zip" godot.ios.template_release.arm64
-              echo "[OK] ios.zip"
-            fi
-          fi
-
-      - name: Install visionOS templates
-        if: needs.detect.outputs.has_visionos == 'true'
-        shell: bash
-        run: |
-          set -e
-          TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/$GODOT_TAG"
-          CACHE_DIR="$HOME/.cache/gdio/visionos-templates"
-          mkdir -p "$TEMPLATE_DIR"
-          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
-            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
-            echo "[OK] Restored visionOS templates from cache"
-          else
-            mkdir -p "$CACHE_DIR"
-            cd godot/bin
-            if [ -f godot.visionos.template_release.arm64 ]; then
-              zip -j "$TEMPLATE_DIR/ios.zip" godot.visionos.template_release.arm64
-              zip -j "$CACHE_DIR/ios.zip" godot.visionos.template_release.arm64
-              echo "[OK] ios.zip (visionOS)"
-            fi
-          fi
-
       - name: Detect binaries
         id: bins
         shell: bash
@@ -1012,20 +929,123 @@ jobs:
           if [ ! -d .godot ]; then
             gdio args --import --headless
           fi
+
+      # macOS: build templates, install, export
+      - name: Build macOS release templates (all arch)
+        if: steps.macos-template-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          cd godot
+          for arch in x86_64 arm64; do
+            echo "[BUILD] macOS template_release $arch"
+            scons platform=macos target=template_release arch=$arch ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+          done
+
+      - name: Install macOS templates
+        shell: bash
+        run: |
+          set -e
+          TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/$GODOT_TAG"
+          CACHE_DIR="$HOME/.cache/gdio/macos-templates"
+          mkdir -p "$TEMPLATE_DIR"
+          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
+            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
+            echo "[OK] Restored macOS templates from cache"
+          else
+            mkdir -p "$CACHE_DIR"
+            cd godot/bin
+            MACOS_FILES=""
+            for arch in x86_64 arm64; do
+              if [ -f "godot.macos.template_release.${arch}" ]; then
+                MACOS_FILES="$MACOS_FILES godot.macos.template_release.${arch}"
+                echo "[OK] Found macOS template $arch"
+              fi
+            done
+            if [ -n "$MACOS_FILES" ]; then
+              zip -j "$TEMPLATE_DIR/macos.zip" $MACOS_FILES
+              zip -j "$CACHE_DIR/macos.zip" $MACOS_FILES
+              echo "[OK] Installed macos.zip"
+            fi
+          fi
+
       - name: Export macOS presets
         if: needs.detect.outputs.has_macos == 'true'
         run: gdio build --macos
+
+      # iOS: build templates, install, export
+      - name: Build iOS release template
+        if: steps.ios-template-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_ios == 'true'
+        shell: bash
+        run: |
+          cd godot
+          echo "[BUILD] iOS template_release"
+          scons platform=ios target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+
+      - name: Install iOS templates
+        if: needs.detect.outputs.has_ios == 'true'
+        shell: bash
+        run: |
+          set -e
+          TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/$GODOT_TAG"
+          CACHE_DIR="$HOME/.cache/gdio/ios-templates"
+          mkdir -p "$TEMPLATE_DIR"
+          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
+            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
+            echo "[OK] Restored iOS templates from cache"
+          else
+            mkdir -p "$CACHE_DIR"
+            cd godot/bin
+            if [ -f godot.ios.template_release.arm64 ]; then
+              zip -j "$TEMPLATE_DIR/ios.zip" godot.ios.template_release.arm64
+              zip -j "$CACHE_DIR/ios.zip" godot.ios.template_release.arm64
+              echo "[OK] ios.zip"
+            fi
+          fi
+
       - name: Export iOS presets
         if: needs.detect.outputs.has_ios == 'true'
         run: gdio build --ios
+
+      # visionOS: build templates, install, export
+      - name: Build visionOS release template
+        if: steps.visionos-template-cache.outputs.cache-hit != 'true' && needs.detect.outputs.has_visionos == 'true'
+        shell: bash
+        run: |
+          cd godot
+          echo "[BUILD] visionOS template_release"
+          scons platform=visionos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+
+      - name: Install visionOS templates
+        if: needs.detect.outputs.has_visionos == 'true'
+        shell: bash
+        run: |
+          set -e
+          TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/$GODOT_TAG"
+          CACHE_DIR="$HOME/.cache/gdio/visionos-templates"
+          mkdir -p "$TEMPLATE_DIR"
+          if [ -d "$CACHE_DIR" ] && [ "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
+            cp "$CACHE_DIR"/* "$TEMPLATE_DIR/" 2>/dev/null || true
+            echo "[OK] Restored visionOS templates from cache"
+          else
+            mkdir -p "$CACHE_DIR"
+            cd godot/bin
+            if [ -f godot.visionos.template_release.arm64 ]; then
+              zip -j "$TEMPLATE_DIR/ios.zip" godot.visionos.template_release.arm64
+              zip -j "$CACHE_DIR/ios.zip" godot.visionos.template_release.arm64
+              echo "[OK] ios.zip (visionOS)"
+            fi
+          fi
+
       - name: Export visionOS presets
         if: needs.detect.outputs.has_visionos == 'true'
         run: gdio build --visionos
 
       - name: Package artifacts
+        if: always()
         run: python .github/workflows/ci_package.py exported_on_macos
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: exported_on_macos

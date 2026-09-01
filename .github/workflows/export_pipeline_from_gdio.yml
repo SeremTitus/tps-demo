@@ -91,9 +91,11 @@ jobs:
         run: gdio build --windows
 
       - name: Package artifacts
+        if: always()
         run: python .github/workflows/ci_package.py exported_on_windows
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: exported_on_windows
@@ -125,15 +127,15 @@ jobs:
         run: gdio add ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
       - name: Bind editor
         run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
-
-      - name: Download Linux export templates
-        run: gdio templates add ${{ env.GODOT_VERSION }} --linux
       - name: Import project if needed
         shell: bash
         run: |
           if [ ! -d .godot ]; then
             gdio args --import --headless
           fi
+      - name: Download Linux export templates
+        if: needs.detect.outputs.has_linux == 'true'
+        run: gdio templates add ${{ env.GODOT_VERSION }} --linux
       - name: Export Linux presets
         if: needs.detect.outputs.has_linux == 'true'
         run: gdio build --linux
@@ -151,9 +153,11 @@ jobs:
         run: gdio build --android
 
       - name: Package artifacts
+        if: always()
         run: python .github/workflows/ci_package.py exported_on_linux
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: exported_on_linux
@@ -211,9 +215,11 @@ jobs:
         run: gdio build --visionos
 
       - name: Package artifacts
+        if: always()
         run: python .github/workflows/ci_package.py exported_on_macos
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: exported_on_macos
