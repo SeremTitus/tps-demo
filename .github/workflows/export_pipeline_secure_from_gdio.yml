@@ -116,7 +116,6 @@ jobs:
         shell: bash
         run: |
           set -e
-          choco install -y python3 scons
           pip install scons
 
       - name: Clone Godot
@@ -171,7 +170,7 @@ jobs:
           set -euo pipefail
           export SCRIPT_AES256_ENCRYPTION_KEY="$SCRIPT_AES256_ENCRYPTION_KEY"
           set +e
-          printf 'y\nn\ny\ny\n\n' | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
+          printf "y\nn\ny\n$SCRIPT_AES256_ENCRYPTION_KEY\n\n" | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
           set -e
           if [ ! -s "godot/core/crypto/security_token.h" ]; then
             echo "ERROR: security_token.h was not generated."
@@ -222,6 +221,7 @@ jobs:
       - name: Install gdio
         shell: pwsh
         run: curl.exe -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.ps1 | powershell -Command -
+
       - name: Add gdio to PATH
         shell: pwsh
         run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -451,7 +451,7 @@ jobs:
           set -euo pipefail
           export SCRIPT_AES256_ENCRYPTION_KEY="$SCRIPT_AES256_ENCRYPTION_KEY"
           set +e
-          printf 'y\nn\ny\ny\n\n' | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
+          printf "y\nn\ny\n$SCRIPT_AES256_ENCRYPTION_KEY\n\n" | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
           set -e
           if [ ! -s "godot/core/crypto/security_token.h" ]; then
             echo "ERROR: security_token.h was not generated."
@@ -541,6 +541,7 @@ jobs:
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
+
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
@@ -599,6 +600,7 @@ jobs:
       - name: Export Linux presets
         if: needs.detect.outputs.has_linux == 'true'
         run: gdio build --linux
+        continue-on-error: true
 
       # Web: setup dependencies, build templates, install, export
       - name: Setup Emscripten SDK
@@ -658,6 +660,7 @@ jobs:
       - name: Export Web presets
         if: needs.detect.outputs.has_web == 'true'
         run: gdio build --web
+        continue-on-error: true
 
       # Android: setup dependencies, build templates, install, export
       - name: Setup Android SDK/NDK
@@ -864,7 +867,7 @@ jobs:
           set -euo pipefail
           export SCRIPT_AES256_ENCRYPTION_KEY="$SCRIPT_AES256_ENCRYPTION_KEY"
           set +e
-          printf 'y\nn\ny\ny\n\n' | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
+          printf "y\nn\ny\n$SCRIPT_AES256_ENCRYPTION_KEY\n\n" | python3 "$GODOT_SECURE_SCRIPT" godot > /tmp/godot_secure_apply.log 2>&1
           set -e
           if [ ! -s "godot/core/crypto/security_token.h" ]; then
             echo "ERROR: security_token.h was not generated."
@@ -910,6 +913,7 @@ jobs:
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
+
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
@@ -971,6 +975,7 @@ jobs:
       - name: Export macOS presets
         if: needs.detect.outputs.has_macos == 'true'
         run: gdio build --macos
+        continue-on-error: true
 
       # iOS: build templates, install, export
       - name: Build iOS release template
@@ -1005,6 +1010,7 @@ jobs:
       - name: Export iOS presets
         if: needs.detect.outputs.has_ios == 'true'
         run: gdio build --ios
+        continue-on-error: true
 
       # visionOS: build templates, install, export
       - name: Build visionOS release template

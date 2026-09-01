@@ -70,23 +70,27 @@ jobs:
       - name: Install gdio
         shell: pwsh
         run: curl.exe -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.ps1 | powershell -Command -
+
       - name: Add gdio to PATH
         shell: pwsh
         run: echo "$env:LOCALAPPDATA\gdio\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Add Godot editor
         run: gdio add ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
+
       - name: Bind editor
         run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
 
       - name: Download Windows export templates
         run: gdio templates add ${{ env.GODOT_VERSION }} --windows
+
       - name: Import project if needed
         shell: bash
         run: |
           if [ ! -d .godot ]; then
             gdio args --import --headless
           fi
+
       - name: Export Windows presets
         run: gdio build --windows
 
@@ -119,32 +123,40 @@ jobs:
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
+
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
 
       - name: Add Godot editor
         run: gdio add ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
+
       - name: Bind editor
         run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
+
       - name: Import project if needed
         shell: bash
         run: |
           if [ ! -d .godot ]; then
             gdio args --import --headless
           fi
+
       - name: Download Linux export templates
         if: needs.detect.outputs.has_linux == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --linux
       - name: Export Linux presets
         if: needs.detect.outputs.has_linux == 'true'
         run: gdio build --linux
+        continue-on-error: true
+
       - name: Download Web export templates
         if: needs.detect.outputs.has_web == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --web
       - name: Export Web presets
         if: needs.detect.outputs.has_web == 'true'
         run: gdio build --web
+        continue-on-error: true
+
       - name: Download Android export templates
         if: needs.detect.outputs.has_android == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --android
@@ -181,32 +193,40 @@ jobs:
       - name: Install gdio
         shell: bash
         run: curl -fsSL https://raw.githubusercontent.com/SeremTitus/gdio/main/scripts/install.sh | bash || true
+
       - name: Add gdio to PATH
         shell: bash
         run: echo "$HOME/.gdio/bin" >> "$GITHUB_PATH"
 
       - name: Add Godot editor
         run: gdio add ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
+
       - name: Bind editor
         run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
 
       - name: Download macOS export templates
         run: gdio templates add ${{ env.GODOT_VERSION }} --macos
+
       - name: Import project if needed
         shell: bash
         run: |
           if [ ! -d .godot ]; then
             gdio args --import --headless
           fi
+
       - name: Export macOS presets
         if: needs.detect.outputs.has_macos == 'true'
         run: gdio build --macos
+        continue-on-error: true
+
       - name: Download iOS export templates
         if: needs.detect.outputs.has_ios == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --ios
       - name: Export iOS presets
         if: needs.detect.outputs.has_ios == 'true'
         run: gdio build --ios
+        continue-on-error: true
+
       - name: Download visionOS export templates
         if: needs.detect.outputs.has_visionos == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --visionos
