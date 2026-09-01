@@ -243,6 +243,7 @@ jobs:
           EDITOR_VERSION=$("$EDITOR_BIN" --version | xargs)
           gdio add "$EDITOR_BIN"
           gdio bind "$EDITOR_VERSION"
+          gdio addons sync
 
       - name: Import project if needed
         shell: bash
@@ -565,6 +566,7 @@ jobs:
           EDITOR_VERSION=$("$EDITOR_BIN" --version | xargs)
           gdio add "$EDITOR_BIN"
           gdio bind "$EDITOR_VERSION"
+          gdio addons sync
 
       - name: Import project if needed
         shell: bash
@@ -953,9 +955,9 @@ jobs:
         shell: bash
         run: |
           cd godot
-          scons platform=macos target=editor arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no
+          scons platform=macos target=editor arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no
           mkdir -p ~/.cache/gdio/macos-editor/
-          cp bin/godot.macos.editor.x86_64* ~/.cache/gdio/macos-editor/ 2>/dev/null || true
+          cp bin/godot.macos.editor.arm64* ~/.cache/gdio/macos-editor/ 2>/dev/null || true
           if [ -d bin/GodotSharp ]; then
             cp -a bin/GodotSharp ~/.cache/gdio/macos-editor/GodotSharp
           fi
@@ -964,8 +966,8 @@ jobs:
         id: bins
         shell: bash
         run: |
-          echo "macos_editor=$(find godot/bin -maxdepth 1 -name 'godot.macos.editor.x86_64' -type f | head -n 1)" >> "$GITHUB_OUTPUT"
-          echo "macos_template=$(find godot/bin -maxdepth 1 -name 'godot.macos.template_release.x86_64' -type f | head -n 1)" >> "$GITHUB_OUTPUT"
+          echo "macos_editor=$(find godot/bin -maxdepth 1 -name 'godot.macos.editor.arm64' -type f | head -n 1)" >> "$GITHUB_OUTPUT"
+          echo "macos_template=$(find godot/bin -maxdepth 1 -name 'godot.macos.template_release.arm64' -type f | head -n 1)" >> "$GITHUB_OUTPUT"
           echo "ios_template=$(find godot/bin -maxdepth 1 -name 'godot.ios.template_release.arm64' -type f | head -n 1)" >> "$GITHUB_OUTPUT"
           echo "visionos_template=$(find godot/bin -maxdepth 1 -name 'godot.visionos.template_release.arm64' -type f | head -n 1)" >> "$GITHUB_OUTPUT"
 
@@ -992,6 +994,7 @@ jobs:
           EDITOR_VERSION=$("$EDITOR_BIN" --version | xargs)
           gdio add "$EDITOR_BIN"
           gdio bind "$EDITOR_VERSION"
+          gdio addons sync
 
       - name: Import project if needed
         shell: bash
@@ -1006,10 +1009,8 @@ jobs:
         shell: bash
         run: |
           cd godot
-          for arch in x86_64 arm64; do
-            echo "[BUILD] macOS template_release $arch"
-            scons platform=macos target=template_release arch=$arch ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
-          done
+          echo "[BUILD] macOS template_release arm64"
+          scons platform=macos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
 
       - name: Install macOS templates
         shell: bash
@@ -1025,12 +1026,10 @@ jobs:
             mkdir -p "$CACHE_DIR"
             cd godot/bin
             MACOS_FILES=""
-            for arch in x86_64 arm64; do
-              if [ -f "godot.macos.template_release.${arch}" ]; then
-                MACOS_FILES="$MACOS_FILES godot.macos.template_release.${arch}"
-                echo "[OK] Found macOS template $arch"
-              fi
-            done
+            if [ -f "godot.macos.template_release.arm64" ]; then
+              MACOS_FILES="$MACOS_FILES godot.macos.template_release.arm64"
+              echo "[OK] Found macOS template arm64"
+            fi
             if [ -n "$MACOS_FILES" ]; then
               zip -j "$TEMPLATE_DIR/macos.zip" $MACOS_FILES
               zip -j "$CACHE_DIR/macos.zip" $MACOS_FILES

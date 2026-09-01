@@ -84,6 +84,9 @@ jobs:
       - name: Bind editor
         run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
 
+      - name: Sync addons
+        run: gdio addons sync
+
       - name: Download Windows export templates
         run: gdio templates add ${{ env.GODOT_VERSION }} --windows
 
@@ -137,6 +140,9 @@ jobs:
 
       - name: Bind editor
         run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
+
+      - name: Sync addons
+        run: gdio addons sync
 
       - name: Import project if needed
         shell: bash
@@ -250,6 +256,9 @@ jobs:
 
       - name: Bind editor
         run: gdio bind ${{ env.GODOT_VERSION }} ${{ env.CSHARP == 'true' && '--csharp' || '' }}
+
+      - name: Sync addons
+        run: gdio addons sync
 
       - name: Download macOS export templates
         run: gdio templates add ${{ env.GODOT_VERSION }} --macos
