@@ -10,7 +10,7 @@ env:
   ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
   ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
   ANDROID_KEYSTORE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
-  SCONSFLAGS: verbose=yes warnings=all -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
+  SCONSFLAGS: verbose=yes warnings=all
 
 jobs:
   detect:
@@ -200,7 +200,7 @@ jobs:
         shell: bash
         run: |
           cd godot
-          scons platform=windows target=editor arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no d3d12=no
+          scons platform=windows target=editor arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no d3d12=no vulkan=no
           mkdir -p ~/.cache/gdio/windows-editor/
           cp bin/godot.windows.editor.x86_64*.exe ~/.cache/gdio/windows-editor/ 2>/dev/null || true
           if [ -d bin/GodotSharp ]; then
@@ -260,9 +260,9 @@ jobs:
           cd godot
           for arch in x86_32 x86_64 arm64; do
             echo "[BUILD] Windows template_release $arch"
-            scons platform=windows target=template_release arch=$arch ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no d3d12=no
+            scons platform=windows target=template_release arch=$arch ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
             echo "[BUILD] Windows template_release $arch console"
-            scons platform=windows target=template_release arch=$arch ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no d3d12=no windows_subsystem=console
+            scons platform=windows target=template_release arch=$arch ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no windows_subsystem=console
           done
 
       - name: Install built templates
@@ -395,7 +395,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential scons pkg-config python3 python3-pip \
-            mingw-w64 clang zip unzip curl git cmake openjdk-17-jdk
+            mingw-w64 clang zip unzip curl git cmake openjdk-17-jdk \
+            g++-multilib gcc-multilib
           sudo update-alternatives \
             --install /usr/bin/x86_64-w64-mingw32-g++ x86_64-w64-mingw32-g++ \
             /usr/bin/x86_64-w64-mingw32-g++-posix 100
@@ -490,7 +491,7 @@ jobs:
         shell: bash
         run: |
           cd godot
-          scons platform=linuxbsd target=editor arch=x86_64 module_mono_enabled=yes debug_symbols=no
+          scons platform=linuxbsd target=editor arch=x86_64 module_mono_enabled=yes debug_symbols=no vulkan=no
 
       - name: Generate .NET glue
         if: >-
@@ -515,7 +516,7 @@ jobs:
         shell: bash
         run: |
           cd godot
-          scons platform=linuxbsd target=editor arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no
+          scons platform=linuxbsd target=editor arch=x86_64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no vulkan=no
           mkdir -p ~/.cache/gdio/linux-editor/
           cp bin/godot.linuxbsd.editor.x86_64* ~/.cache/gdio/linux-editor/ 2>/dev/null || true
           if [ -d bin/GodotSharp ]; then
@@ -1010,7 +1011,7 @@ jobs:
         run: |
           cd godot
           echo "[BUILD] macOS template_release arm64"
-          scons platform=macos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no vulkan=no
+          scons platform=macos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
 
       - name: Install macOS templates
         shell: bash
@@ -1049,7 +1050,7 @@ jobs:
         run: |
           cd godot
           echo "[BUILD] iOS template_release"
-          scons platform=ios target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no vulkan=no
+          scons platform=ios target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
 
       - name: Install iOS templates
         if: needs.detect.outputs.has_ios == 'true'
@@ -1084,7 +1085,7 @@ jobs:
         run: |
           cd godot
           echo "[BUILD] visionOS template_release"
-          scons platform=visionos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no vulkan=no
+          scons platform=visionos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
 
       - name: Install visionOS templates
         if: needs.detect.outputs.has_visionos == 'true'
