@@ -10,7 +10,7 @@ env:
   ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
   ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
   ANDROID_KEYSTORE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
-  SCONSFLAGS: verbose=yes warnings=all
+  SCONSFLAGS: verbose=yes warnings=all -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 
 jobs:
   detect:
@@ -989,7 +989,7 @@ jobs:
       - name: Bind compiled editor
         shell: bash
         run: |
-          EDITOR_BIN=$(find package_editor -maxdepth 1 -type f -executable | head -n 1)
+          EDITOR_BIN=$(ls package_editor/* 2>/dev/null | head -n 1)
           chmod +x "$EDITOR_BIN"
           EDITOR_VERSION=$("$EDITOR_BIN" --version | xargs)
           gdio add "$EDITOR_BIN"
