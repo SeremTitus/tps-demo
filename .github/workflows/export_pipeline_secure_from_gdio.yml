@@ -955,7 +955,7 @@ jobs:
         shell: bash
         run: |
           cd godot
-          scons platform=macos target=editor arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no
+          scons platform=macos target=editor arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} debug_symbols=no vulkan=no
           mkdir -p ~/.cache/gdio/macos-editor/
           cp bin/godot.macos.editor.arm64* ~/.cache/gdio/macos-editor/ 2>/dev/null || true
           if [ -d bin/GodotSharp ]; then
@@ -1010,7 +1010,7 @@ jobs:
         run: |
           cd godot
           echo "[BUILD] macOS template_release arm64"
-          scons platform=macos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+          scons platform=macos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no vulkan=no
 
       - name: Install macOS templates
         shell: bash
@@ -1049,7 +1049,7 @@ jobs:
         run: |
           cd godot
           echo "[BUILD] iOS template_release"
-          scons platform=ios target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+          scons platform=ios target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no vulkan=no
 
       - name: Install iOS templates
         if: needs.detect.outputs.has_ios == 'true'
@@ -1084,7 +1084,7 @@ jobs:
         run: |
           cd godot
           echo "[BUILD] visionOS template_release"
-          scons platform=visionos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no
+          scons platform=visionos target=template_release arch=arm64 ${{ env.CSHARP == 'true' && 'module_mono_enabled=yes' || '' }} production=yes debug_symbols=no lto=auto disable_path_overrides=no vulkan=no
 
       - name: Install visionOS templates
         if: needs.detect.outputs.has_visionos == 'true'
