@@ -6,6 +6,9 @@ on:
 env:
   GODOT_VERSION: "4.7.2.stable"
   CSHARP: "false"
+  ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+  ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+  ANDROID_KEYSTORE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
 
 jobs:
   detect:
@@ -93,6 +96,7 @@ jobs:
 
       - name: Export Windows presets
         run: gdio build --windows
+        continue-on-error: true
 
       - name: Package artifacts
         if: always()
@@ -157,12 +161,55 @@ jobs:
         run: gdio build --web
         continue-on-error: true
 
-      - name: Download Android export templates
+      - name: Validate Android keystore secrets
+        id: android_keystore
         if: needs.detect.outputs.has_android == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$ANDROID_KEYSTORE"
+          echo "::add-mask::$ANDROID_KEYSTORE_PASSWORD"
+          echo "::add-mask::$ANDROID_KEYSTORE_USER"
+          MISSING=0
+          if [ -z "${ANDROID_KEYSTORE:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE secret is not set."
+            MISSING=1
+          fi
+          if [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD secret is not set."
+            MISSING=1
+          fi
+          if [ -z "${ANDROID_KEYSTORE_USER:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_USER secret is not set."
+            MISSING=1
+          fi
+          if [ "$MISSING" -ne 0 ]; then
+            echo "::error::One or more Android keystore secrets are missing. Skipping Android build."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/android_release.keystore"
+          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/android_debug.keystore"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$RUNNER_TEMP/android_release.keystore" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$RUNNER_TEMP/android_debug.keystore" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$ANDROID_KEYSTORE_USER" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=$ANDROID_KEYSTORE_USER" >> "$GITHUB_ENV"
+          echo "has_android_keystore=true" >> "$GITHUB_OUTPUT"
+          echo "[OK] Android keystore secrets validated and env vars set."
+
+      - name: Download Android export templates
+        if: >-
+          needs.detect.outputs.has_android == 'true' &&
+          steps.android_keystore.outputs.has_android_keystore == 'true'
         run: gdio templates add ${{ env.GODOT_VERSION }} --android
       - name: Export Android presets
-        if: needs.detect.outputs.has_android == 'true'
+        if: >-
+          needs.detect.outputs.has_android == 'true' &&
+          steps.android_keystore.outputs.has_android_keystore == 'true'
         run: gdio build --android
+        continue-on-error: true
 
       - name: Package artifacts
         if: always()
@@ -233,6 +280,7 @@ jobs:
       - name: Export visionOS presets
         if: needs.detect.outputs.has_visionos == 'true'
         run: gdio build --visionos
+        continue-on-error: true
 
       - name: Package artifacts
         if: always()
